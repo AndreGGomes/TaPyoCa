@@ -4,46 +4,68 @@
 #include <string.h>
 #include "y.tab.h" /* Inclui a definicao dos tokens gerados pelo Yacc */
 
-/* Estrutura para lidar com a indentação */
 #define MAX_INDENT 100
 int indent_stack[MAX_INDENT] = {0};
 int indent_top = 0;
-int current_line_indent = 0;
+int pending_dedents = 0;
+
+int handle_indent(int current_indent);
+
+#define YY_DECL int _yylex(void)
+
+/* 1. MACRO PODEROSA: Inicia o Lexer forçando-o a checar a indentação na linha 1 */
+#define YY_USER_INIT { BEGIN(INDENT_STATE); }
 %}
 
-/* Habilita a contagem de linhas automatica para o yyerror no Yacc */
 %option yylineno
-/* Desabilita o yywrap, ja que estamos tratando o fim de arquivo na regra <<EOF>> */
 %option noyywrap
 
-/* Regras auxiliares */
+/* 2. Cria o estado exclusivo para processar indentação */
+%x INDENT_STATE
+
 DIGIT    [0-9]
 ID       [a-zA-Z_][a-zA-Z0-9_]*
 STRING   \"([^\\\"]|\\.)*\"
-REAL_NUM {DIGIT}+"."{DIGIT}+
+REAL_PAT {DIGIT}+"."{DIGIT}+
 
 %%
 
- /* Início de uma nova linha: conta espaços para gerenciar INDENT/DEDENT */
-^[ \t]*    {
-                current_line_indent = yyleng;
-                if (current_line_indent > indent_stack[indent_top]) {
-                    indent_stack[++indent_top] = current_line_indent;
-                    printf("INDENT\n");
-                    return INDENT;
-                } else if (current_line_indent < indent_stack[indent_top]) {
-                    while (indent_top > 0 && current_line_indent < indent_stack[indent_top]) {
-                        indent_top--;
-                        printf("DEDENT\n");
-                        return DEDENT;
-                    }
-                }
-           }
+ /* ================= ESTADO DE INDENTAÇÃO ================= */
 
- /* Ignora espaços e tabs no meio da linha */
+ /* Ignora linhas vazias silenciosamente e continua esperando código */
+<INDENT_STATE>[ \t]*\r?\n   { }
+
+ /* Captura os espaços no início da linha (mesmo que seja 0 espaços) */
+<INDENT_STATE>[ \t]+ {
+    int current_indent = 0;
+    for (int i = 0; i < yyleng; i++) {
+        if (yytext[i] == ' ') current_indent++;
+        else if (yytext[i] == '\t') current_indent += 4;
+    }
+    BEGIN(INITIAL);
+    { int tok = handle_indent(current_indent); if (tok) return tok; }
+}
+
+ /* Linha comecando direto em codigo (indentacao 0): o flex nao casa o padrao
+    vazio, entao tratamos aqui devolvendo o caractere para a entrada */
+<INDENT_STATE>. {
+    yyless(0);
+    BEGIN(INITIAL);
+    { int tok = handle_indent(0); if (tok) return tok; }
+}
+
+ /* ================= ESTADO NORMAL (INITIAL) ================= */
+
+ /* Quando encontra uma quebra de linha normal, volta para o estado de indentação */
+\n|\r\n    { 
+    BEGIN(INDENT_STATE);
+    return NEWLINE; 
+}
+
+ /* Ignora espaços e tabs no meio do código */
 [ \t]+     ;
 
- /* Palavras-chave de Estrutura */
+ /* Palavras-chave */
 "main"     { return MAIN; }
 "endmain"  { return ENDMAIN; }
 "sub"      { return SUB; }
@@ -53,17 +75,10 @@ REAL_NUM {DIGIT}+"."{DIGIT}+
 "if"       { return IF; }
 "endif"    { return ENDIF; }
 "return"   { return RETURN; }
+"print"    { return PRINT; }
 
- /* Palavras-chave de Tipos de Dados */
+ /* Tipos de Dados */
 "int"      { return INT; }
-
- /* Nota: Estes tipos nao estao no seu arquivo Yacc atual. 
-    Se for usa-los, lembre-se de declarar %token no Yacc. */
-"real"     { /* return REAL; */ } 
-"string"   { /* return STRING_TYPE; */ }
-"bool"     { /* return BOOL; */ }
-"true"     { /* return TRUE; */ }
-"false"    { /* return FALSE; */ }
 
  /* Símbolos e Operadores */
 "("        { return LPAREN; }
@@ -83,26 +98,62 @@ REAL_NUM {DIGIT}+"."{DIGIT}+
 ">"        { return GT; }
 "="        { return ASSIGN; }
 
- /* Literais e Identificadores (Sintaxe corrigida) */
-{REAL_NUM} { return NUM; } /* Mapeado para NUM para ser compativel com o Yacc atual */
-{DIGIT}+   { return NUM; }
-{STRING}   { return STRING_LITERAL; }
-{ID}       { return ID; }
-
- /* Nova Linha */
-\n|\r\n    { return NEWLINE; }
+ /* Retornando valores */
+{REAL_PAT} { 
+    yylval.fval = atof(yytext); 
+    return REAL_NUM; 
+}
+{DIGIT}+   { 
+    yylval.ival = atoi(yytext); 
+    return INT_NUM; 
+}
+{STRING}   { 
+    yylval.sval = strdup(yytext); 
+    return STRING_LITERAL; 
+}
+{ID}       { 
+    yylval.sval = strdup(yytext); 
+    return ID; 
+}
 
  /* Caractere Invalido */
-.          { printf("Erro lexico: Caractere invalido '%s'\n", yytext); }
+.          { printf("Erro lexico na linha %d: '%s'\n", yylineno, yytext); }
 
- /* Tratamento do Fim de Arquivo (Emite DEDENTs remanescentes) */
+ /* ================= FIM DE ARQUIVO ================= */
 <<EOF>>    { 
-                if (indent_top > 0) {
-                    indent_top--;
-                    printf("DEDENT\n");
-                    return DEDENT;
-                }
-                yyterminate(); 
-           }
+    if (indent_top > 0) {
+        indent_top--;
+        return DEDENT; 
+    }
+    yyterminate(); 
+}
 
 %%
+
+/* Wrapper para distribuir múltiplos DEDENTs acumulados */
+int yylex(void) {
+    if (pending_dedents > 0) {
+        pending_dedents--;
+        return DEDENT;
+    }
+    return _yylex();
+}
+
+/* Compara a indentacao da linha com a pilha. Retorna INDENT, DEDENT ou 0 */
+int handle_indent(int current_indent) {
+    if (current_indent > indent_stack[indent_top]) {
+        indent_stack[++indent_top] = current_indent;
+        return INDENT;
+    }
+    if (current_indent < indent_stack[indent_top]) {
+        while (indent_top > 0 && current_indent < indent_stack[indent_top]) {
+            indent_top--;
+            pending_dedents++;
+        }
+        if (pending_dedents > 0) {
+            pending_dedents--;
+            return DEDENT;
+        }
+    }
+    return 0;
+}
