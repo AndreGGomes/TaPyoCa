@@ -79,6 +79,8 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 
  /* Tipos de Dados */
 "int"      { return INT; }
+"real"     { return REAL; }
+"string"   { return STRING; }
 
  /* Símbolos e Operadores */
 "("        { return LPAREN; }

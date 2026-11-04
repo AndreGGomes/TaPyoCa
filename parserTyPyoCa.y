@@ -45,7 +45,7 @@ static void pr(const char *f, ...) {
 }
 
 %token MAIN LPAREN RPAREN NEWLINE INDENT DEDENT ENDMAIN SUB ENDSUB COMMA
-%token ASSIGN RETURN IF ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET
+%token ASSIGN RETURN IF ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL
 %token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV PRINT
 
 %token <ival> INT_NUM
@@ -143,14 +143,14 @@ atribuicao
 /* O NEWLINE apos ENDWHILE/ENDIF e consumido pela regra "comandos" */
 comandowhile
     : WHILE LPAREN expressao RPAREN
-        { pr("[while] (%s)", $3); depth++; free($3); }
+        { pr("[while] while (%s)", $3); depth++; free($3); }
       NEWLINE INDENT comandos DEDENT ENDWHILE
         { depth--; pr("[endwhile]"); }
     ;
 
 comandoif
     : IF LPAREN expressao RPAREN
-        { pr("[if] (%s)", $3); depth++; free($3); }
+        { pr("[if] if (%s)", $3); depth++; free($3); }
       NEWLINE INDENT comandos DEDENT ENDIF
         { depth--; pr("[endif]"); }
     ;
@@ -178,6 +178,8 @@ lista_argumentos
 
 tipo
     : INT                      { $$ = strdup("int"); }
+    | REAL                     { $$ = strdup("real"); }
+    | STRING                   { $$ = strdup("string"); }
     | tipo LBRACKET RBRACKET   { $$ = fmt("%s[]", $1); free($1); }
     ;
 
