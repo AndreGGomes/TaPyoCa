@@ -1,0 +1,30 @@
+sub int processar_matriz(int[] amostra, int limite, int fator)
+    int acumulador = 0
+    int idx = 0
+    while (idx < limite)
+        if (amostra[idx] != 0)
+            acumulador = acumulador + (amostra[idx] * fator) / 2
+        endif
+        idx = idx + 1
+    endwhile
+    return acumulador
+endsub
+
+sub imprimir_alerta(string mensagem, int codigo)
+    print(mensagem, codigo)
+endsub
+
+main()
+    int[] valores
+    int n = 5
+    int multiplicador = 3
+    int resultado = processar_matriz(valores, n, multiplicador)
+
+    if (resultado >= 50)
+        imprimir_alerta("Processamento concluido com valor alto:", resultado)
+    endif
+
+    if (resultado < 50)
+        imprimir_alerta("Processamento concluido com valor baixo:", resultado)
+    endif
+endmain
