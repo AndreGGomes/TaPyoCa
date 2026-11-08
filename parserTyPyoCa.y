@@ -133,6 +133,8 @@ comandoprint
 declaracaovar
     : tipo ID ASSIGN expressao
         { pr("[decl] %s %s <- %s", $1, $2, $4); free($1); free($2); free($4); }
+    | | tipo ID
+        { pr("[decl] %s %s", $1, $2); free($1); free($2); }
     ;
 
 atribuicao
