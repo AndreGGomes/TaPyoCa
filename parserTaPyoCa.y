@@ -11,7 +11,7 @@ extern char * yytext;
 
 /* ---------- utilitarios de impressao ---------- */
 
-static int depth = 0;   /* nivel de aninhamento atual (4 espacos por nivel) */
+static int depth = 0;   /* nivel de aninhamento atual (4 espacos por tab) */
 
 /* Monta uma string nova (malloc) estilo printf. Quem recebe deve dar free. */
 static char *fmt(const char *f, ...) {
@@ -77,7 +77,7 @@ declaracao : subrotina {}
 main_block
     : MAIN LPAREN RPAREN
         { pr("[main]"); depth++; }
-      NEWLINE INDENT comandos DEDENT ENDMAIN NEWLINE
+      NEWLINE corpo_bloco ENDMAIN NEWLINE
         { depth--; pr("[endmain]"); printf("\n"); }
     ;
 
@@ -89,7 +89,7 @@ subrotina
             depth++;
             free($2); free($3); free($5);
         }
-      NEWLINE INDENT comandos DEDENT ENDSUB NEWLINE
+      NEWLINE corpo_bloco ENDSUB NEWLINE
         { depth--; pr("[endsub]"); printf("\n"); }
     ;
 
@@ -115,6 +115,12 @@ comandos
     | /* vazio */              {}
     ;
 
+/* Nova regra que permite um bloco ter recuo e comandos, OU ser completamente vazio */
+corpo_bloco
+    : INDENT comandos DEDENT {}
+    | /* vazio */            {}
+    ;
+
 comando
     : declaracaovar {}
     | atribuicao    {}
@@ -133,7 +139,7 @@ comandoprint
 declaracaovar
     : tipo ID ASSIGN expressao
         { pr("[decl] %s %s <- %s", $1, $2, $4); free($1); free($2); free($4); }
-    | | tipo ID
+    | tipo ID
         { pr("[decl] %s %s", $1, $2); free($1); free($2); }
     ;
 
@@ -142,18 +148,17 @@ atribuicao
         { pr("[atrib] %s <- %s", $1, $3); free($1); free($3); }
     ;
 
-/* O NEWLINE apos ENDWHILE/ENDIF e consumido pela regra "comandos" */
 comandowhile
     : WHILE LPAREN expressao RPAREN
         { pr("[while] while (%s)", $3); depth++; free($3); }
-      NEWLINE INDENT comandos DEDENT ENDWHILE
+      NEWLINE corpo_bloco ENDWHILE
         { depth--; pr("[endwhile]"); }
     ;
 
 comandoif
     : IF LPAREN expressao RPAREN
         { pr("[if] if (%s)", $3); depth++; free($3); }
-      NEWLINE INDENT comandos DEDENT ENDIF
+      NEWLINE corpo_bloco ENDIF
         { depth--; pr("[endif]"); }
     ;
 
