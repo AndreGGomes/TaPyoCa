@@ -13,5 +13,5 @@ make
 Para rodar o compilador no arquivo de teste, basta rodar no terminal (linux ou mac):
 
 ```bash
-./TaPyoCompiler < test.tpyc
+./TaPyoCompiler < codigos_teste/test.tpyc
 ```
