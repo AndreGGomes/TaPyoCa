@@ -127,7 +127,7 @@ comando
 
 comandoprint
     : PRINT LPAREN argumentos_opt RPAREN
-        { pr("[print] %s", $3); free($3); }
+        { pr("[print] print %s", $3); free($3); }
     ;
 
 declaracaovar
