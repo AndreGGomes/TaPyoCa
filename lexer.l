@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "semantico.h"
 #include "y.tab.h" /* Inclui a definicao dos tokens gerados pelo Yacc */
 
 #define MAX_INDENT 100
@@ -19,6 +20,8 @@ int handle_indent(int current_indent);
 
 %option yylineno
 %option noyywrap
+%option noinput
+%option nounput
 
 /* 2. Cria o estado exclusivo para processar indentação */
 %x INDENT_STATE
