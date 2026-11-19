@@ -5,6 +5,5 @@ endsub
 
 main()
     int x = 5
-    int y = x
-    foo(y)
+    int y = x + "string"
 endmain

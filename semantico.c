@@ -111,7 +111,11 @@ Tipo parse_tipo_string(const char *str) {
 }
 
 const char* tipo_para_string(Tipo t) {
-    static char buf[64];
+    static char bufs[4][64];
+    static int idx = 0;
+    char *buf = bufs[idx];
+    idx = (idx + 1) % 4;
+
     const char *base_str = "erro";
     switch (t.base) {
         case TIPO_VOID:   base_str = "void"; break;
