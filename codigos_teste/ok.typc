@@ -1,0 +1,10 @@
+sub foo(int x)
+    int[] v = [1, 2, 3]
+    x = v[0]
+endsub
+
+main()
+    int x = 5
+    int y = x
+    foo(y)
+endmain

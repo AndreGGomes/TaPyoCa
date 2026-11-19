@@ -6,6 +6,7 @@
         Tipo tipos[32];
         int count;
         char *texto;
+        char *c_texto;
     } ListaParams;
 
     typedef struct {
@@ -51,6 +52,37 @@ static void pr(const char *f, ...) {
     vprintf(f, ap);
     va_end(ap);
     printf("\n");
+}
+
+static FILE *out_c = NULL;
+
+/* Emite uma linha indentada no arquivo C */
+static void emit_c(const char *f, ...) {
+    if (!out_c) return;
+    for (int i = 0; i < depth; i++) fprintf(out_c, "    ");
+    va_list ap;
+    va_start(ap, f);
+    vfprintf(out_c, f, ap);
+    va_end(ap);
+    fprintf(out_c, "\n");
+}
+
+/* Converte Tipo (TaPyoCa) para sintaxe C (ex: int[] -> int*, string -> char*) */
+static char *tipo_para_c(Tipo t) {
+    const char *base = "int";
+    switch (t.base) {
+        case TIPO_VOID:   base = "void"; break;
+        case TIPO_INT:    base = "int"; break;
+        case TIPO_REAL:   base = "double"; break;
+        case TIPO_STRING: base = "char*"; break;
+        default:          base = "int"; break;
+    }
+    char buf[64];
+    strcpy(buf, base);
+    for (int i = 0; i < t.dimensao && i < 10; i++) {
+        strcat(buf, "*");
+    }
+    return strdup(buf);
 }
 
 /* ---------- estruturas auxiliares para o semantico ---------- */
@@ -115,6 +147,7 @@ main_block
     : MAIN LPAREN RPAREN
         {
             pr("[main]");
+            emit_c("int main(void) %c", 123);
             depth++;
             retorno_esperado = criar_tipo(TIPO_VOID, 0);
             encontrou_return = 0;
@@ -123,7 +156,9 @@ main_block
       NEWLINE corpo_bloco ENDMAIN NEWLINE
         {
             sair_escopo();
+            emit_c("return 0;");
             depth--;
+            emit_c("%c\n", 125);
             pr("[endmain]");
             printf("\n");
         }
@@ -134,9 +169,13 @@ subrotina
         {
             if ($2[0]) pr("[sub] %s %s(%s)", $2, $3, $5->texto);
             else       pr("[sub] %s(%s)", $3, $5->texto);
-            depth++;
 
             Tipo ret = parse_tipo_string($2);
+            char *ret_c = tipo_para_c(ret);
+            emit_c("%s %s(%s) {", ret_c, $3, $5->c_texto);
+            free(ret_c);
+            depth++;
+
             Tipo *tipos_params = NULL;
             if ($5->count > 0) {
                 tipos_params = malloc(sizeof(Tipo) * $5->count);
@@ -144,10 +183,10 @@ subrotina
                     tipos_params[i] = $5->tipos[i];
                 }
             }
-            /* Insere a subrotina no escopo global */
-            inserir_funcao($3, ret, $5->count, tipos_params, yylineno);
+            if (!inserir_funcao($3, ret, $5->count, tipos_params, yylineno)) {
+                free(tipos_params);
+            }
 
-            /* Abre escopo local e declara os parametros */
             entrar_escopo();
             for (int i = 0; i < $5->count; i++) {
                 inserir_variavel($5->nomes[i], $5->tipos[i], yylineno);
@@ -156,7 +195,7 @@ subrotina
             retorno_esperado = ret;
             encontrou_return = 0;
 
-            free($2); free($3); free($5->texto); free($5);
+            free($2); free($3); free($5->texto); free($5->c_texto); free($5);
         }
       NEWLINE corpo_bloco ENDSUB NEWLINE
         {
@@ -166,6 +205,7 @@ subrotina
             }
             sair_escopo();
             depth--;
+            emit_c("}\n");
             pr("[endsub]");
             printf("\n");
         }
@@ -183,6 +223,7 @@ parametros_opt
             ListaParams *lp = calloc(1, sizeof(ListaParams));
             lp->count = 0;
             lp->texto = strdup("");
+            lp->c_texto = strdup("");
             $$ = lp;
         }
     ;
@@ -191,26 +232,36 @@ lista_parametros
     : lista_parametros COMMA tipo ID
         {
             $$ = $1;
+            Tipo t = parse_tipo_string($3);
+            char *t_c = tipo_para_c(t);
+
             if ($$->count < 32) {
                 int idx = $$->count++;
                 $$->nomes[idx] = $4;
-                $$->tipos[idx] = parse_tipo_string($3);
+                $$->tipos[idx] = t;
             } else {
                 erro_semantico(yylineno, "Limite maximo de 32 parametros excedido.");
                 free($4);
             }
+
             char *novo = fmt("%s, %s %s", $$->texto, $3, $$->nomes[$$->count - 1]);
-            free($$->texto); free($3);
+            char *novo_c = fmt("%s, %s %s", $$->c_texto, t_c, $$->nomes[$$->count - 1]);
+            free($$->texto); free($$->c_texto); free($3); free(t_c);
             $$->texto = novo;
+            $$->c_texto = novo_c;
         }
     | tipo ID
         {
             ListaParams *lp = calloc(1, sizeof(ListaParams));
+            Tipo t = parse_tipo_string($1);
+            char *t_c = tipo_para_c(t);
+
             lp->nomes[0] = $2;
-            lp->tipos[0] = parse_tipo_string($1);
+            lp->tipos[0] = t;
             lp->count = 1;
             lp->texto = fmt("%s %s", $1, $2);
-            free($1);
+            lp->c_texto = fmt("%s %s", t_c, $2);
+            free($1); free(t_c);
             $$ = lp;
         }
     ;
@@ -249,10 +300,26 @@ declaracaovar
         {
             pr("[decl] %s %s <- %s", $1, $2, $4.texto);
             Tipo t_var = parse_tipo_string($1);
-            inserir_variavel($2, t_var, yylineno);
-            if (!tipos_compativeis(t_var, $4.tipo)) {
-                erro_semantico(yylineno, "Nao e possivel inicializar '%s' (%s) com tipo '%s'.",
-                               $2, tipo_para_string(t_var), tipo_para_string($4.tipo));
+            if (inserir_variavel($2, t_var, yylineno) != NULL) {
+                if (!tipos_compativeis(t_var, $4.tipo)) {
+                    erro_semantico(yylineno, "Nao e possivel inicializar '%s' (%s) com tipo '%s'.",
+                                   $2, tipo_para_string(t_var), tipo_para_string($4.tipo));
+                } else {
+                    char *t_c = tipo_para_c(t_var);
+                    /* Se for array literal "[1, 2, 3]", converte [] para {} em C */
+                    if (t_var.dimensao > 0 && $4.texto[0] == '[') {
+                        Tipo t_elem = criar_tipo(t_var.base, t_var.dimensao - 1);
+                        char *elem_c = tipo_para_c(t_elem);
+                        char *init = strdup($4.texto);
+                        init[0] = '{';
+                        init[strlen(init) - 1] = '}';
+                        emit_c("%s %s[] = %s;", elem_c, $2, init);
+                        free(elem_c); free(init);
+                    } else {
+                        emit_c("%s %s = %s;", t_c, $2, $4.texto);
+                    }
+                    free(t_c);
+                }
             }
             free($1); free($2); free($4.texto);
         }
@@ -260,7 +327,11 @@ declaracaovar
         {
             pr("[decl] %s %s", $1, $2);
             Tipo t_var = parse_tipo_string($1);
-            inserir_variavel($2, t_var, yylineno);
+            if (inserir_variavel($2, t_var, yylineno) != NULL) {
+                char *t_c = tipo_para_c(t_var);
+                emit_c("%s %s;", t_c, $2);
+                free(t_c);
+            }
             free($1); free($2);
         }
     ;
@@ -581,7 +652,29 @@ array_elements_opt
 
 int main(void) {
     iniciar_semantico();
-    return yyparse();
+    out_c = fopen("saida.c", "w");
+    if (!out_c) {
+        perror("Erro ao abrir saida.c");
+        return 1;
+    }
+    fprintf(out_c, "#include <stdio.h>\n#include <stdlib.h>\n\n");
+    int res = yyparse();
+    fclose(out_c);
+
+    if (res != 0 || obter_erros_semanticos() > 0) {
+        remove("saida.c"); /* Remove o arquivo se houve erro */
+        return 1;
+    }
+
+    /* Compila saida.c para o executavel ./saida */
+    int gcc_res = system("gcc saida.c -o saida");
+    if (gcc_res != 0) {
+        fprintf(stderr, "Erro ao compilar saida.c com o gcc.\n");
+        return 1;
+    }
+
+    printf("Executavel './saida' gerado com sucesso.\n");
+    return 0;
 }
 
 int yyerror(char *msg) {
