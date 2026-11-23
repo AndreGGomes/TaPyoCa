@@ -1,0 +1,19 @@
+# 1. Comentario no topo do arquivo (antes do main)
+
+sub int dobro(int n) # 2. Comentario na assinatura da subrotina
+    # 3. Comentario alinhado dentro da subrotina
+      # 4. Comentario com indentacao extra (nao deve emitir INDENT)
+    return n * 2 # 5. Comentario apos comando
+endsub
+
+main()
+    # 6. Comentario logo na abertura do main
+  # 7. Comentario com menos espacos que o bloco (nao deve emitir DEDENT)
+    int x = 10 # Comentario apos declaracao
+    real y = 2.5
+    string texto = "Isso nao # eh comentario" # O # dentro da string deve aparecer
+
+    print(texto)
+    print(x + y) # Deve imprimir 12.5
+endmain
+# 8. Comentario no final do arquivo

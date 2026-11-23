@@ -35,8 +35,8 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 
  /* ================= ESTADO DE INDENTAÇÃO ================= */
 
- /* Ignora linhas vazias silenciosamente e continua esperando código */
-<INDENT_STATE>[ \t]*\r?\n   { }
+ /* Ignora linhas vazias ou linhas só com comentário e continua esperando código */
+<INDENT_STATE>[ \t]*(#[^\r\n]*)?\r?\n   { }
 
  /* Captura os espaços no início da linha (mesmo que seja 0 espaços) */
 <INDENT_STATE>[ \t]+ {
@@ -67,6 +67,9 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 
  /* Ignora espaços e tabs no meio do código */
 [ \t]+     ;
+
+ /* Ignora comentários de fim de linha */
+#[^\r\n]*  ;
 
  /* Palavras-chave */
 "main"     { return MAIN; }
