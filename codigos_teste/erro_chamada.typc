@@ -1,0 +1,8 @@
+sub soma(int a, int b)
+    print(a + b)
+endsub
+
+main()
+    soma(10)
+    nao_existe()
+endmain

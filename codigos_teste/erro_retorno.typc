@@ -1,0 +1,7 @@
+sub int sem_retorno(int a)
+    int b = a + 1
+endsub
+
+main()
+    return 10
+endmain

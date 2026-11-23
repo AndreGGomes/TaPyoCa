@@ -1,0 +1,5 @@
+main()
+    if ("verdadeiro")
+        print(1)
+    endif
+endmain

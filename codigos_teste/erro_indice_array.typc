@@ -1,0 +1,5 @@
+main()
+    int[] v = [1, 2, 3]
+    int x = v[1.5]
+    int y = x[0]
+endmain
