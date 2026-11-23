@@ -1,0 +1,4 @@
+# Testa read() em variavel nao declarada (nao deve gerar erro em cascata)
+main()
+    x = read()
+endmain

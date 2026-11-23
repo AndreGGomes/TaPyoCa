@@ -1,0 +1,6 @@
+# Testa erro semantico ao tentar ler diretamente para um array
+main()
+    int[] v = read()
+    int[] w = [1, 2]
+    w = read()
+endmain

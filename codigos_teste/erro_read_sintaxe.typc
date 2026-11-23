@@ -1,0 +1,4 @@
+# Testa uso invalido de read() dentro de expressao
+main()
+    int x = read() + 1
+endmain
