@@ -290,10 +290,20 @@ comandoprint
     : PRINT LPAREN argumentos_opt RPAREN
         {
             pr("[print] print %s", $3->texto);
+            if ($3->count == 0) {
+                emit_c("printf(\"\\n\");");
+            } else {
+                /* Verifica o tipo do primeiro argumento para escolher o especificador C */
+                const char *spec = "%d";
+                if ($3->tipos[0].base == TIPO_REAL)        spec = "%g";
+                else if ($3->tipos[0].base == TIPO_STRING) spec = "%s";
+
+                emit_c("printf(\"%s\\n\", %s);", spec, $3->texto);
+            }
             free($3->texto);
             free($3);
         }
-    ;
+    ;;
 
 declaracaovar
     : tipo ID ASSIGN expressao
