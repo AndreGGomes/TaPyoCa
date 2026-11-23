@@ -103,7 +103,7 @@ static int encontrou_return = 0;
 
 %token MAIN LPAREN RPAREN NEWLINE INDENT DEDENT ENDMAIN SUB ENDSUB COMMA
 %token ASSIGN RETURN IF ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL
-%token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV PRINT
+%token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV PRINT READ
 
 %token <ival> INT_NUM
 %token <fval> REAL_NUM
@@ -306,7 +306,31 @@ comandoprint
     ;;
 
 declaracaovar
-    : tipo ID ASSIGN expressao
+    : tipo ID ASSIGN READ LPAREN RPAREN
+        {
+            pr("[decl] %s %s <- read()", $1, $2);
+            Tipo t_var = parse_tipo_string($1);
+            if (inserir_variavel($2, t_var, yylineno) != NULL) {
+                if (t_var.dimensao > 0) {
+                    erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em um array ('%s').", $2);
+                } else {
+                    char *t_c = tipo_para_c(t_var);
+                    if (t_var.base == TIPO_INT) {
+                        emit_c("%s %s;", t_c, $2);
+                        emit_c("if (scanf(\"%%d\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'int'.\\n\"); exit(1); }", $2);
+                    } else if (t_var.base == TIPO_REAL) {
+                        emit_c("%s %s;", t_c, $2);
+                        emit_c("if (scanf(\"%%lf\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'real'.\\n\"); exit(1); }", $2);
+                    } else if (t_var.base == TIPO_STRING) {
+                        emit_c("char *%s = malloc(256);", $2);
+                        emit_c("if (scanf(\"%%255s\", %s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'string'.\\n\"); exit(1); }", $2);
+                    }
+                    free(t_c);
+                }
+            }
+            free($1); free($2);
+        }
+    | tipo ID ASSIGN expressao
         {
             pr("[decl] %s %s <- %s", $1, $2, $4.texto);
             Tipo t_var = parse_tipo_string($1);
@@ -316,7 +340,6 @@ declaracaovar
                                    $2, tipo_para_string(t_var), tipo_para_string($4.tipo));
                 } else {
                     char *t_c = tipo_para_c(t_var);
-                    /* Se for array literal "[1, 2, 3]", converte [] para {} em C */
                     if (t_var.dimensao > 0 && $4.texto[0] == '[') {
                         Tipo t_elem = criar_tipo(t_var.base, t_var.dimensao - 1);
                         char *elem_c = tipo_para_c(t_elem);
@@ -347,12 +370,30 @@ declaracaovar
     ;
 
 atribuicao
-    : l_value ASSIGN expressao
+    : l_value ASSIGN READ LPAREN RPAREN
+        {
+            pr("[atrib] %s <- read()", $1.texto);
+            if ($1.tipo.base != TIPO_ERRO) {
+                if ($1.tipo.dimensao > 0) {
+                    erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em um array ('%s').", $1.texto);
+                } else if ($1.tipo.base == TIPO_INT) {
+                    emit_c("if (scanf(\"%%d\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'int'.\\n\"); exit(1); }", $1.texto);
+                } else if ($1.tipo.base == TIPO_REAL) {
+                    emit_c("if (scanf(\"%%lf\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'real'.\\n\"); exit(1); }", $1.texto);
+                } else if ($1.tipo.base == TIPO_STRING) {
+                    emit_c("if (scanf(\"%%255s\", %s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'string'.\\n\"); exit(1); }", $1.texto);
+                }
+            }
+            free($1.texto);
+        }
+    | l_value ASSIGN expressao
         {
             pr("[atrib] %s <- %s", $1.texto, $3.texto);
             if (!tipos_compativeis($1.tipo, $3.tipo)) {
                 erro_semantico(yylineno, "Atribuicao incompativel: '%s' espera '%s', mas recebeu '%s'.",
                                $1.texto, tipo_para_string($1.tipo), tipo_para_string($3.tipo));
+            } else {
+                emit_c("%s = %s;", $1.texto, $3.texto);
             }
             free($1.texto); free($3.texto);
         }

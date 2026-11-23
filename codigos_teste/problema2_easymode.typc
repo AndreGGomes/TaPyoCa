@@ -1,0 +1,4 @@
+main()
+    int input = read()
+    print(input)
+endmain
