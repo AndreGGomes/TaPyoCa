@@ -70,17 +70,18 @@ static void emit_c(const char *f, ...) {
     fprintf(out_c, "\n");
 }
 
-/* Converte Tipo (TaPyoCa) para sintaxe C (ex: int[] -> int*, string -> char*) */
+/* Converte Tipo (TaPyoCa) para sintaxe C
+   (ex: int[] -> int*, string -> char*, Aluno -> struct Aluno) */
 static char *tipo_para_c(Tipo t) {
-    const char *base = "int";
+    char base[96];
     switch (t.base) {
-        case TIPO_VOID:   base = "void"; break;
-        case TIPO_INT:    base = "int"; break;
-        case TIPO_REAL:   base = "double"; break;
-        case TIPO_STRING: base = "char*"; break;
-        default:          base = "int"; break;
+        case TIPO_VOID:   strcpy(base, "void"); break;
+        case TIPO_REAL:   strcpy(base, "double"); break;
+        case TIPO_STRING: strcpy(base, "char*"); break;
+        case TIPO_STRUCT: snprintf(base, sizeof(base), "struct %s", t.nome_struct); break;
+        default:          strcpy(base, "int"); break;
     }
-    char buf[64];
+    char buf[128];
     strcpy(buf, base);
     for (int i = 0; i < t.dimensao && i < 10; i++) {
         strcat(buf, "*");
@@ -92,6 +93,7 @@ static char *tipo_para_c(Tipo t) {
 
 static Tipo retorno_esperado;
 static int encontrou_return = 0;
+static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 
 %}
 
@@ -107,10 +109,12 @@ static int encontrou_return = 0;
 %token MAIN LPAREN RPAREN NEWLINE INDENT DEDENT ENDMAIN SUB ENDSUB COMMA
 %token ASSIGN RETURN IF ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL
 %token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV PRINT READ REF
+%token STRUCT ENDSTRUCT DOT
 
 %token <ival> INT_NUM
 %token <fval> REAL_NUM
 %token <sval> ID
+%token <sval> STRUCT_ID
 %token <sval> STRING_LITERAL
 
 /* Nao-terminais tipados */
@@ -142,9 +146,58 @@ declaracoes_globais
     ;
 
 declaracao
-    : subrotina  {}
-    | main_block {}
+    : subrotina         {}
+    | main_block        {}
+    | declaracao_struct {}
     ;
+
+/* ---------- structs ---------- */
+
+declaracao_struct
+    : STRUCT ID
+        {
+            pr("[struct] %s", $2);
+            struct_atual = inserir_struct($2, yylineno);
+            emit_c("struct %s {", $2);
+            depth++;
+        }
+      NEWLINE corpo_struct ENDSTRUCT NEWLINE
+        {
+            if (struct_atual && struct_atual->num_campos == 0) {
+                erro_semantico(yylineno, "Struct '%s' deve possuir ao menos um campo.", $2);
+            }
+            depth--;
+            emit_c("};\n");
+            pr("[endstruct]");
+            printf("\n");
+            struct_atual = NULL;
+            free($2);
+        }
+    ;
+
+corpo_struct
+    : INDENT campos DEDENT {}
+    | /* vazio */          {}
+    ;
+
+campos
+    : campos campo NEWLINE {}
+    | /* vazio */          {}
+    ;
+
+campo
+    : tipo ID
+        {
+            pr("[campo] %s %s", $1, $2);
+            Tipo t = parse_tipo_string($1);
+            adicionar_campo_struct(struct_atual, $2, t, yylineno);
+            char *t_c = tipo_para_c(t);
+            emit_c("%s %s;", t_c, $2);
+            free(t_c); free($1); free($2);
+        }
+    ;
+
+/* ---------- main e subrotinas ---------- */
 
 main_block
     : MAIN LPAREN RPAREN
@@ -237,16 +290,17 @@ lista_parametros
                 $$->nomes[idx] = $5;
                 $$->tipos[idx] = t;
                 $$->is_ref[idx] = 1; /* Marca como parametro por referencia */
+
+                char *novo = fmt("%s, ref %s %s", $$->texto, $4, $$->nomes[idx]);
+                char *novo_c = fmt("%s, %s *%s", $$->c_texto, t_c, $$->nomes[idx]);
+                free($$->texto); free($$->c_texto);
+                $$->texto = novo;
+                $$->c_texto = novo_c;
             } else {
                 erro_semantico(yylineno, "Limite maximo de 32 parametros excedido.");
                 free($5);
             }
-
-            char *novo = fmt("%s, ref %s %s", $$->texto, $4, $$->nomes[$$->count - 1]);
-            char *novo_c = fmt("%s, %s *%s", $$->c_texto, t_c, $$->nomes[$$->count - 1]);
-            free($$->texto); free($$->c_texto); free($4); free(t_c);
-            $$->texto = novo;
-            $$->c_texto = novo_c;
+            free($4); free(t_c);
         }
     | REF tipo ID
         {
@@ -274,16 +328,17 @@ lista_parametros
                 $$->nomes[idx] = $4;
                 $$->tipos[idx] = t;
                 $$->is_ref[idx] = 0; /* Parametro normal (por valor) */
+
+                char *novo = fmt("%s, %s %s", $$->texto, $3, $$->nomes[idx]);
+                char *novo_c = fmt("%s, %s %s", $$->c_texto, t_c, $$->nomes[idx]);
+                free($$->texto); free($$->c_texto);
+                $$->texto = novo;
+                $$->c_texto = novo_c;
             } else {
                 erro_semantico(yylineno, "Limite maximo de 32 parametros excedido.");
                 free($4);
             }
-
-            char *novo = fmt("%s, %s %s", $$->texto, $3, $$->nomes[$$->count - 1]);
-            char *novo_c = fmt("%s, %s %s", $$->c_texto, t_c, $$->nomes[$$->count - 1]);
-            free($$->texto); free($$->c_texto); free($3); free(t_c);
-            $$->texto = novo;
-            $$->c_texto = novo_c;
+            free($3); free(t_c);
         }
     | tipo ID
         {
@@ -302,6 +357,8 @@ lista_parametros
         }
     ;
 
+/* ---------- comandos ---------- */
+
 comandos
     : comandos comando NEWLINE {}
     | /* vazio */              {}
@@ -317,7 +374,7 @@ comando
     | atribuicao    {}
     | comandoif     {}
     | comandowhile  {}
-    | chamadafuncao { pr("[chamada] %s", $1.texto); free($1.texto); }
+    | chamadafuncao { pr("[chamada] %s", $1.texto); emit_c("%s;", $1.texto); free($1.texto); }
     | retorno       {}
     | comandoprint  {}
     ;
@@ -328,18 +385,21 @@ comandoprint
             pr("[print] print %s", $3->texto);
             if ($3->count == 0) {
                 emit_c("printf(\"\\n\");");
+            } else if ($3->is_ref[0]) {
+                erro_semantico(yylineno, "'print' nao aceita argumento por referencia ('ref').");
             } else {
                 /* Verifica o tipo do primeiro argumento para escolher o especificador C */
                 const char *spec = "%d";
                 if ($3->tipos[0].base == TIPO_REAL)        spec = "%g";
                 else if ($3->tipos[0].base == TIPO_STRING) spec = "%s";
 
-                emit_c("printf(\"%s\\n\", %s);", spec, $3->texto);
+                emit_c("printf(\"%s\\n\", %s);", spec, $3->c_texto);
             }
             free($3->texto);
+            free($3->c_texto);
             free($3);
         }
-    ;;
+    ;
 
 declaracaovar
     : tipo ID ASSIGN READ LPAREN RPAREN
@@ -347,8 +407,8 @@ declaracaovar
             pr("[decl] %s %s <- read()", $1, $2);
             Tipo t_var = parse_tipo_string($1);
             if (inserir_variavel($2, t_var, yylineno) != NULL) {
-                if (t_var.dimensao > 0) {
-                    erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em um array ('%s').", $2);
+                if (t_var.dimensao > 0 || t_var.base == TIPO_STRUCT) {
+                    erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em '%s'.", $2);
                 } else {
                     char *t_c = tipo_para_c(t_var);
                     if (t_var.base == TIPO_INT) {
@@ -378,6 +438,8 @@ declaracaovar
                     char *t_c = tipo_para_c(t_var);
                     if (t_var.dimensao > 0 && $4.texto[0] == '[') {
                         Tipo t_elem = criar_tipo(t_var.base, t_var.dimensao - 1);
+                        if (t_var.base == TIPO_STRUCT)
+                            strcpy(t_elem.nome_struct, t_var.nome_struct);
                         char *elem_c = tipo_para_c(t_elem);
                         char *init = strdup($4.texto);
                         init[0] = '{';
@@ -410,13 +472,14 @@ atribuicao
         {
             pr("[atrib] %s <- read()", $1.texto);
             if ($1.tipo.base != TIPO_ERRO) {
-                if ($1.tipo.dimensao > 0) {
-                    erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em um array ('%s').", $1.texto);
+                if ($1.tipo.dimensao > 0 || $1.tipo.base == TIPO_STRUCT) {
+                    erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em '%s'.", $1.texto);
                 } else if ($1.tipo.base == TIPO_INT) {
                     emit_c("if (scanf(\"%%d\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'int'.\\n\"); exit(1); }", $1.texto);
                 } else if ($1.tipo.base == TIPO_REAL) {
                     emit_c("if (scanf(\"%%lf\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'real'.\\n\"); exit(1); }", $1.texto);
                 } else if ($1.tipo.base == TIPO_STRING) {
+                    emit_c("%s = malloc(256);", $1.texto);
                     emit_c("if (scanf(\"%%255s\", %s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'string'.\\n\"); exit(1); }", $1.texto);
                 }
             }
@@ -516,8 +579,7 @@ chamadafuncao
             else if (strcmp($1, "swap") == 0) {
                 if ($3->count != 2) {
                     erro_semantico(yylineno, "'swap' espera 2 argumentos, recebeu %d.", $3->count);
-                } else if ($3->tipos[0].base != TIPO_ERRO && $3->tipos[1].base != TIPO_ERRO &&
-                           ($3->tipos[0].base != $3->tipos[1].base || $3->tipos[0].dimensao != $3->tipos[1].dimensao)) {
+                } else if (!tipos_identicos($3->tipos[0], $3->tipos[1])) {
                     erro_semantico(yylineno, "'swap' requer argumentos exatamente do mesmo tipo, recebeu '%s' e '%s'.",
                                    tipo_para_string($3->tipos[0]), tipo_para_string($3->tipos[1]));
                 }
@@ -548,9 +610,8 @@ chamadafuncao
                                 erro_semantico(yylineno, "Argumento %d de '%s' nao aceita passagem por referencia ('ref').",
                                                i + 1, $1);
                             } else if (param_ref) {
-                                /* Ponteiros em C exigem tipo identico (nao permite passar int* para double*) */
-                                if ($3->tipos[i].base != TIPO_ERRO &&
-                                    (s->params[i].base != $3->tipos[i].base || s->params[i].dimensao != $3->tipos[i].dimensao)) {
+                                /* Ponteiros em C exigem tipo identico (inclusive nome da struct) */
+                                if (!tipos_identicos(s->params[i], $3->tipos[i])) {
                                     erro_semantico(yylineno, "Argumento %d por referencia de '%s' exige tipo exato '%s', recebido '%s'.",
                                                    i + 1, $1, tipo_para_string(s->params[i]), tipo_para_string($3->tipos[i]));
                                 }
@@ -574,6 +635,7 @@ argumentos_opt
             ListaArgs *la = calloc(1, sizeof(ListaArgs));
             la->count = 0;
             la->texto = strdup("");
+            la->c_texto = strdup("");
             $$ = la;
         }
     ;
@@ -581,15 +643,19 @@ argumentos_opt
 lista_argumentos
     : lista_argumentos COMMA REF l_value
         {
-            int idx = $1->count;
-            $1->tipos[idx] = $4.tipo;
-            $1->is_ref[idx] = 1;
-            $1->count++;
-            char *novo_t = fmt("%s, ref %s", $1->texto, $4.texto);
-            char *novo_c = fmt("%s, &(%s)", $1->c_texto, $4.texto);
-            free($1->texto); free($1->c_texto); free($4.texto);
-            $1->texto = novo_t;
-            $1->c_texto = novo_c;
+            if ($1->count < 32) {
+                int idx = $1->count++;
+                $1->tipos[idx] = $4.tipo;
+                $1->is_ref[idx] = 1;
+                char *novo_t = fmt("%s, ref %s", $1->texto, $4.texto);
+                char *novo_c = fmt("%s, &(%s)", $1->c_texto, $4.texto);
+                free($1->texto); free($1->c_texto);
+                $1->texto = novo_t;
+                $1->c_texto = novo_c;
+            } else {
+                erro_semantico(yylineno, "Limite maximo de 32 argumentos/elementos excedido.");
+            }
+            free($4.texto);
             $$ = $1;
         }
     | REF l_value
@@ -605,15 +671,19 @@ lista_argumentos
         }
     | lista_argumentos COMMA expressao
         {
-            int idx = $1->count;
-            $1->tipos[idx] = $3.tipo;
-            $1->is_ref[idx] = 0;
-            $1->count++;
-            char *novo_t = fmt("%s, %s", $1->texto, $3.texto);
-            char *novo_c = fmt("%s, %s", $1->c_texto, $3.texto);
-            free($1->texto); free($1->c_texto); free($3.texto);
-            $1->texto = novo_t;
-            $1->c_texto = novo_c;
+            if ($1->count < 32) {
+                int idx = $1->count++;
+                $1->tipos[idx] = $3.tipo;
+                $1->is_ref[idx] = 0;
+                char *novo_t = fmt("%s, %s", $1->texto, $3.texto);
+                char *novo_c = fmt("%s, %s", $1->c_texto, $3.texto);
+                free($1->texto); free($1->c_texto);
+                $1->texto = novo_t;
+                $1->c_texto = novo_c;
+            } else {
+                erro_semantico(yylineno, "Limite maximo de 32 argumentos/elementos excedido.");
+            }
+            free($3.texto);
             $$ = $1;
         }
     | expressao
@@ -628,12 +698,17 @@ lista_argumentos
         }
     ;
 
+/* ---------- tipos ---------- */
+
 tipo
     : INT                      { $$ = strdup("int"); }
     | REAL                     { $$ = strdup("real"); }
     | STRING                   { $$ = strdup("string"); }
+    | STRUCT_ID                { $$ = $1; }
     | tipo LBRACKET RBRACKET   { $$ = fmt("%s[]", $1); free($1); }
     ;
+
+/* ---------- expressoes ---------- */
 
 expressao
     : exprelacional { $$ = $1; }
@@ -724,6 +799,8 @@ l_value
                     erro_semantico(yylineno, "Tentativa de indexar tipo nao-array '%s'.",
                                    tipo_para_string($1.tipo));
                     $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                } else if ($1.tipo.base == TIPO_STRUCT) {
+                    $$.tipo = criar_tipo_struct($1.tipo.nome_struct, $1.tipo.dimensao - 1);
                 } else {
                     $$.tipo = criar_tipo($1.tipo.base, $1.tipo.dimensao - 1);
                 }
@@ -731,6 +808,25 @@ l_value
                 $$.tipo = criar_tipo(TIPO_ERRO, 0);
             }
             free($1.texto); free($3.texto);
+        }
+    | l_value DOT ID
+        {
+            $$.texto = fmt("%s.%s", $1.texto, $3);
+            if ($1.tipo.base == TIPO_ERRO) {
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+            } else if ($1.tipo.base != TIPO_STRUCT || $1.tipo.dimensao != 0) {
+                erro_semantico(yylineno, "Acesso ao campo '%s' em '%s', que nao e uma struct.",
+                               $3, tipo_para_string($1.tipo));
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+            } else {
+                Tipo tc = buscar_campo_struct($1.tipo.nome_struct, $3);
+                if (tc.base == TIPO_ERRO) {
+                    erro_semantico(yylineno, "Struct '%s' nao possui o campo '%s'.",
+                                   $1.tipo.nome_struct, $3);
+                }
+                $$.tipo = tc;
+            }
+            free($1.texto); free($3);
         }
     ;
 
@@ -747,14 +843,20 @@ fator
 arrayLiteral
     : LBRACKET array_elements_opt RBRACKET
         {
-            $$.texto = fmt("[%s]", $2->texto);
+            $$.texto = fmt("[%s]", $2->c_texto);
             if ($2->count == 0) {
                 erro_semantico(yylineno, "Array literal vazio nao permitido sem inferencia de tipo.");
                 $$.tipo = criar_tipo(TIPO_ERRO, 0);
             } else {
                 Tipo elem_tipo = $2->tipos[0];
                 int erro_elem = 0;
-                for (int i = 1; i < $2->count; i++) {
+                for (int i = 0; i < $2->count; i++) {
+                    if ($2->is_ref[i]) {
+                        erro_semantico(yylineno, "Elementos de array literal nao podem usar 'ref'.");
+                        erro_elem = 1;
+                        break;
+                    }
+                    if (i == 0) continue;
                     if (tipos_compativeis(elem_tipo, $2->tipos[i])) {
                         continue;
                     } else if (tipos_compativeis($2->tipos[i], elem_tipo)) {
@@ -769,11 +871,14 @@ arrayLiteral
                 }
                 if (erro_elem || elem_tipo.base == TIPO_ERRO) {
                     $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                } else if (elem_tipo.base == TIPO_STRUCT) {
+                    $$.tipo = criar_tipo_struct(elem_tipo.nome_struct, elem_tipo.dimensao + 1);
                 } else {
                     $$.tipo = criar_tipo(elem_tipo.base, elem_tipo.dimensao + 1);
                 }
             }
             free($2->texto);
+            free($2->c_texto);
             free($2);
         }
     ;
@@ -785,6 +890,7 @@ array_elements_opt
             ListaArgs *la = calloc(1, sizeof(ListaArgs));
             la->count = 0;
             la->texto = strdup("");
+            la->c_texto = strdup("");
             $$ = la;
         }
     ;

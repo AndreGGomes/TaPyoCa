@@ -1,22 +1,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int processar_matriz(int* amostra, int limite, int fator) {
-    int acumulador = 0;
-    int idx = 0;
-            acumulador = acumulador + (amostra[idx] * fator) / 2;
-        idx = idx + 1;
+void ler_e_dobrar(int *valor) {
+    if (scanf("%d", &(*valor)) != 1) { fprintf(stderr, "Erro em tempo de execucao: esperado 'int'.\n"); exit(1); }
+    (*valor) = (*valor) * 2;
 }
 
-void imprimir_alerta(char* mensagem, int codigo) {
-    printf("%s\n", mensagem, codigo);
+void trocar(int *a, int *b) {
+    int aux = (*a);
+    (*a) = (*b);
+    (*b) = aux;
 }
 
 int main(void) {
-    int* valores;
-    int n = 5;
-    int multiplicador = 3;
-    int resultado = processar_matriz(valores, n, multiplicador);
+    int x = 0;
+    int y = 5;
+    ler_e_dobrar(&(x));
+    trocar(&(x), &(y));
+    printf("%d\n", x);
+    printf("%d\n", y);
     return 0;
 }
 

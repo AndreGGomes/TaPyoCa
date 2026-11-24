@@ -5,11 +5,13 @@
 #include "semantico.h"
 
 static Simbolo *tabela_simbolos = NULL;
+static StructDef *tabela_structs = NULL;
 static int escopo_atual = 0;
 static int erros_semanticos = 0;
 
 void iniciar_semantico(void) {
     tabela_simbolos = NULL;
+    tabela_structs = NULL;
     escopo_atual = 0;
     erros_semanticos = 0;
 }
@@ -62,7 +64,7 @@ Simbolo* buscar_simbolo(const char *nome) {
 
 Simbolo* inserir_variavel_ref(const char *nome, Tipo tipo, int is_ref, int linha) {
     if (buscar_no_escopo_atual(nome) != NULL) {
-        erro_semantico(linha, "Variavel '%s' ja declarada neste escopo.", nome);
+        erro_semantico(linha, "Identificador '%s' ja declarado neste escopo.", nome);
         return NULL;
     }
     Simbolo *s = calloc(1, sizeof(Simbolo));
@@ -85,7 +87,7 @@ Simbolo* inserir_variavel(const char *nome, Tipo tipo, int linha) {
 
 Simbolo* inserir_funcao_ref(const char *nome, Tipo retorno, int num_params, Tipo *params, int *params_ref, int linha) {
     if (buscar_no_escopo_atual(nome) != NULL) {
-        erro_semantico(linha, "Subrotina '%s' ja foi declarada.", nome);
+        erro_semantico(linha, "Subrotina '%s' ja declarada.", nome);
         return NULL;
     }
     Simbolo *s = calloc(1, sizeof(Simbolo));
@@ -104,7 +106,7 @@ Simbolo* inserir_funcao_ref(const char *nome, Tipo retorno, int num_params, Tipo
         if (params_ref != NULL) {
             memcpy(s->params_ref, params_ref, sizeof(int) * num_params);
         }
-    } /* <-- Chave que estava faltando */
+    }
 
     s->nivel_escopo = escopo_atual;
     s->prox = tabela_simbolos;
@@ -116,21 +118,96 @@ Simbolo* inserir_funcao(const char *nome, Tipo retorno, int num_params, Tipo *pa
     return inserir_funcao_ref(nome, retorno, num_params, params, NULL, linha);
 }
 
+/* ---------- Gerenciamento de Structs ---------- */
+
+StructDef* buscar_struct(const char *nome) {
+    for (StructDef *st = tabela_structs; st != NULL; st = st->prox) {
+        if (strcmp(st->nome, nome) == 0) return st;
+    }
+    return NULL;
+}
+
+StructDef* inserir_struct(const char *nome, int linha) {
+    if (buscar_struct(nome) != NULL || buscar_simbolo(nome) != NULL) {
+        erro_semantico(linha, "Struct '%s' ja declarada.", nome);
+        return NULL;
+    }
+    StructDef *st = calloc(1, sizeof(StructDef));
+    strncpy(st->nome, nome, 63);
+    st->nome[63] = '\0';
+    st->prox = tabela_structs;
+    tabela_structs = st;
+    return st;
+}
+
+int adicionar_campo_struct(StructDef *st, const char *nome_campo, Tipo tipo_campo, int linha) {
+    if (!st) return 0;
+    for (int i = 0; i < st->num_campos; i++) {
+        if (strcmp(st->campos[i].nome, nome_campo) == 0) {
+            erro_semantico(linha, "Campo '%s' duplicado na struct '%s'.", nome_campo, st->nome);
+            return 0;
+        }
+    }
+    if (st->num_campos >= 32) {
+        erro_semantico(linha, "Limite maximo de 32 campos excedido na struct '%s'.", st->nome);
+        return 0;
+    }
+    strncpy(st->campos[st->num_campos].nome, nome_campo, 63);
+    st->campos[st->num_campos].nome[63] = '\0';
+    st->campos[st->num_campos].tipo = tipo_campo;
+    st->num_campos++;
+    return 1;
+}
+
+Tipo buscar_campo_struct(const char *nome_struct, const char *nome_campo) {
+    StructDef *st = buscar_struct(nome_struct);
+    if (!st) return criar_tipo(TIPO_ERRO, 0);
+    for (int i = 0; i < st->num_campos; i++) {
+        if (strcmp(st->campos[i].nome, nome_campo) == 0) {
+            return st->campos[i].tipo;
+        }
+    }
+    return criar_tipo(TIPO_ERRO, 0);
+}
+
+/* ---------- Utilitarios de Tipo e Verificacoes ---------- */
+
 Tipo criar_tipo(TipoBase base, int dimensao) {
-    Tipo t = { base, dimensao };
+    Tipo t;
+    t.base = base;
+    t.dimensao = dimensao;
+    t.nome_struct[0] = '\0';
+    return t;
+}
+
+Tipo criar_tipo_struct(const char *nome_struct, int dimensao) {
+    Tipo t;
+    t.base = TIPO_STRUCT;
+    t.dimensao = dimensao;
+    strncpy(t.nome_struct, nome_struct, 63);
+    t.nome_struct[63] = '\0';
     return t;
 }
 
 Tipo parse_tipo_string(const char *str) {
     if (!str || str[0] == '\0') return criar_tipo(TIPO_VOID, 0);
+
     int dim = 0;
     for (const char *p = str; *p; p++) {
         if (*p == '[') dim++;
     }
-    if (strncmp(str, "int", 3) == 0) return criar_tipo(TIPO_INT, dim);
-    if (strncmp(str, "real", 4) == 0) return criar_tipo(TIPO_REAL, dim);
-    if (strncmp(str, "string", 6) == 0) return criar_tipo(TIPO_STRING, dim);
-    return criar_tipo(TIPO_ERRO, 0);
+
+    char base_nome[64];
+    size_t len = strcspn(str, "[");
+    if (len >= sizeof(base_nome)) len = sizeof(base_nome) - 1;
+    strncpy(base_nome, str, len);
+    base_nome[len] = '\0';
+
+    if (strcmp(base_nome, "int") == 0)    return criar_tipo(TIPO_INT, dim);
+    if (strcmp(base_nome, "real") == 0)   return criar_tipo(TIPO_REAL, dim);
+    if (strcmp(base_nome, "string") == 0) return criar_tipo(TIPO_STRING, dim);
+
+    return criar_tipo_struct(base_nome, dim);
 }
 
 const char* tipo_para_string(Tipo t) {
@@ -145,6 +222,7 @@ const char* tipo_para_string(Tipo t) {
         case TIPO_INT:    base_str = "int"; break;
         case TIPO_REAL:   base_str = "real"; break;
         case TIPO_STRING: base_str = "string"; break;
+        case TIPO_STRUCT: base_str = t.nome_struct; break;
         default: break;
     }
     strcpy(buf, base_str);
@@ -157,10 +235,25 @@ const char* tipo_para_string(Tipo t) {
 int tipos_compativeis(Tipo destino, Tipo origem) {
     if (destino.base == TIPO_ERRO || origem.base == TIPO_ERRO) return 1; /* Evita cascata de erros */
     if (destino.dimensao != origem.dimensao) return 0;
+
+    if (destino.base == TIPO_STRUCT || origem.base == TIPO_STRUCT) {
+        return destino.base == TIPO_STRUCT && origem.base == TIPO_STRUCT &&
+               strcmp(destino.nome_struct, origem.nome_struct) == 0;
+    }
+
     if (destino.base == origem.base) return 1;
     /* Coerção implícita permitida: int -> real (apenas para escalares) */
     if (destino.dimensao == 0 && destino.base == TIPO_REAL && origem.base == TIPO_INT) return 1;
     return 0;
+}
+
+int tipos_identicos(Tipo t1, Tipo t2) {
+    if (t1.base == TIPO_ERRO || t2.base == TIPO_ERRO) return 1;
+    if (t1.base != t2.base || t1.dimensao != t2.dimensao) return 0;
+    if (t1.base == TIPO_STRUCT) {
+        return strcmp(t1.nome_struct, t2.nome_struct) == 0;
+    }
+    return 1;
 }
 
 Tipo verificar_binario_aritmetico(Tipo t1, Tipo t2, const char *op, int linha) {
