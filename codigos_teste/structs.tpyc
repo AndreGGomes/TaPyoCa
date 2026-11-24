@@ -1,0 +1,15 @@
+struct Pessoa
+    string nome
+    int idade
+endstruct
+
+sub 
+main()
+    Pessoa a
+    print("digite seu nome:")
+    a.nome = read()
+    print("digite sua idade:")
+    a.idade = read()
+
+    print("Oi", a.nome, "você tem", a.idade, "anos!")
+endmain

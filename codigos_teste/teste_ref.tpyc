@@ -1,0 +1,19 @@
+sub ler_e_dobrar(ref int valor)
+    valor = read()
+    valor = valor * 2
+endsub
+
+sub trocar(ref int a, ref int b)
+    int aux = a
+    a = b
+    b = aux
+endsub
+
+main()
+    int x = 0
+    int y = 5
+    ler_e_dobrar(ref x)
+    trocar(ref x, ref y)
+    print(x)
+    print(y)
+endmain
