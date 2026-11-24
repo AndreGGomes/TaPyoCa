@@ -1,0 +1,5 @@
+main()
+    string nome = "Haniel"
+    int idade = 21
+    print("ola,", nome, "voce tem", idade, "anos")
+endmain
