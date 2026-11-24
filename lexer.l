@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "semantico.h"
-#include "y.tab.h" /* Inclui a definicao dos tokens gerados pelo Yacc */
+#include "parserTaPyoCa.tab.h"
 
 #define MAX_INDENT 100
 int indent_stack[MAX_INDENT] = {0};
@@ -79,6 +79,7 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 "while"    { return WHILE; }
 "endwhile" { return ENDWHILE; }
 "if"       { return IF; }
+"break"    { return BREAK; }
 "endif"    { return ENDIF; }
 "return"   { return RETURN; }
 "print"    { return PRINT; }

@@ -1,0 +1,10 @@
+main()
+    int contador = 0
+    while (contador < 10)
+        if (contador == 3)
+            break
+        endif
+        print(contador)
+        contador = contador + 1
+    endwhile
+endmain 

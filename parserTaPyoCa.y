@@ -30,6 +30,7 @@ extern char *yytext;
 /* ---------- utilitarios de impressao ---------- */
 
 static int depth = 0;   /* nivel de aninhamento atual (4 espacos por tab) */
+static int loop_depth = 0;  /* controla quantos laços estão ativos */
 
 /* Monta uma string nova (malloc) estilo printf. Quem recebe deve dar free. */
 static char *fmt(const char *f, ...) {
@@ -107,6 +108,7 @@ static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 %token ASSIGN RETURN IF ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL
 %token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV PRINT READ
 %token STRUCT ENDSTRUCT DOT
+%token BREAK
 
 %token <ival> INT_NUM
 %token <fval> REAL_NUM
@@ -336,6 +338,7 @@ comando
     | atribuicao    {}
     | comandoif     {}
     | comandowhile  {}
+    | comandobreak  {}
     | chamadafuncao { pr("[chamada] %s", $1.texto); free($1.texto); }
     | retorno       {}
     | comandoprint  {}
@@ -461,18 +464,23 @@ comandowhile
     : WHILE LPAREN expressao RPAREN
         {
             pr("[while] while (%s)", $3.texto);
-            depth++;
             if ($3.tipo.base != TIPO_ERRO && ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
                 erro_semantico(yylineno, "Condicao do 'while' deve ser logica/inteira, recebeu '%s'.",
                                tipo_para_string($3.tipo));
             }
+            emit_c("while (%s) {", $3.texto);
+            depth++;
+            loop_depth++;
             entrar_escopo();
             free($3.texto);
         }
+
       NEWLINE corpo_bloco ENDWHILE
         {
             sair_escopo();
             depth--;
+            loop_depth--;
+            emit_c("}");
             pr("[endwhile]");
         }
     ;
@@ -481,19 +489,53 @@ comandoif
     : IF LPAREN expressao RPAREN
         {
             pr("[if] if (%s)", $3.texto);
-            depth++;
-            if ($3.tipo.base != TIPO_ERRO && ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
-                erro_semantico(yylineno, "Condicao do 'if' deve ser logica/inteira, recebeu '%s'.",
-                               tipo_para_string($3.tipo));
+
+            /* Verifica se a condicao possui tipo inteiro */
+            if ($3.tipo.base != TIPO_ERRO &&
+                ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
+
+                erro_semantico(yylineno,
+                    "Condicao do 'if' deve ser logica/inteira, recebeu '%s'.",
+                    tipo_para_string($3.tipo));
             }
+
+            /* Gera a abertura do if no codigo C */
+            emit_c("if (%s) {", $3.texto);
+
+            /* Aumenta a indentacao do codigo gerado */
+            depth++;
+
+            /* Cria um novo escopo para o bloco */
             entrar_escopo();
+
             free($3.texto);
         }
       NEWLINE corpo_bloco ENDIF
         {
+            /* Encerra o escopo do bloco */
             sair_escopo();
+
+            /* Retorna ao nivel de indentacao anterior */
             depth--;
+
+            /* Gera o fechamento do if no codigo C */
+            emit_c("}");
+
             pr("[endif]");
+        }
+    ;
+
+comandobreak
+    : BREAK
+        {
+            pr("[break]");
+
+            if (loop_depth == 0) {
+                erro_semantico(yylineno,
+                    "Comando 'break' so pode ser utilizado dentro de um while.");
+            }
+
+            emit_c("break;");
         }
     ;
 
