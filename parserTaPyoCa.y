@@ -1,6 +1,10 @@
 %code requires {
     #include "semantico.h"
 
+    extern int yylineno;
+    extern char *yytext;
+    extern FILE *yyin;
+
     typedef struct {
         char *nomes[32];
         Tipo tipos[32];
@@ -935,30 +939,62 @@ array_elements_opt
 
 %%
 
-int main(void) {
-    iniciar_semantico();
-    out_c = fopen("saida.c", "w");
-    if (!out_c) {
-        perror("Erro ao abrir saida.c");
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Uso: %s <arquivo.tpyc>\n", argv[0]);
         return 1;
     }
+
+    yyin = fopen(argv[1], "r");
+    if (!yyin) {
+        perror("Erro ao abrir arquivo de entrada");
+        return 1;
+    }
+
+    /* Extrai o nome base do arquivo (ignora diretorios e remove a extensao) */
+    const char *barra = strrchr(argv[1], '/');
+    const char *inicio = barra ? barra + 1 : argv[1];
+
+    char nome_base[256];
+    strncpy(nome_base, inicio, sizeof(nome_base) - 1);
+    nome_base[sizeof(nome_base) - 1] = '\0';
+
+    char *ponto = strrchr(nome_base, '.');
+    if (ponto) {
+        *ponto = '\0';
+    }
+
+    char nome_c[300];
+    snprintf(nome_c, sizeof(nome_c), "%s.c", nome_base);
+
+    iniciar_semantico();
+    out_c = fopen(nome_c, "w");
+    if (!out_c) {
+        perror("Erro ao criar arquivo C de saida");
+        fclose(yyin);
+        return 1;
+    }
+
     fprintf(out_c, "#include <stdio.h>\n#include <stdlib.h>\n\n");
     int res = yyparse();
     fclose(out_c);
+    fclose(yyin);
 
     if (res != 0 || obter_erros_semanticos() > 0) {
-        remove("saida.c"); /* Remove o arquivo se houve erro */
+        remove(nome_c); /* Remove o arquivo C se houve erro */
         return 1;
     }
 
-    /* Compila saida.c para o executavel ./saida */
-    int gcc_res = system("gcc saida.c -o saida");
+    /* Compila <nome_base>.c para o executavel ./<nome_base> */
+    char cmd[700];
+    snprintf(cmd, sizeof(cmd), "gcc \"%s\" -o \"%s\"", nome_c, nome_base);
+    int gcc_res = system(cmd);
     if (gcc_res != 0) {
-        fprintf(stderr, "Erro ao compilar saida.c com o gcc.\n");
+        fprintf(stderr, "Erro ao compilar %s com o gcc.\n", nome_c);
         return 1;
     }
 
-    printf("Executavel './saida' gerado com sucesso.\n");
+    printf("Executavel './%s' gerado com sucesso.\n", nome_base);
     return 0;
 }
 

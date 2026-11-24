@@ -3,7 +3,6 @@ struct Pessoa
     int idade
 endstruct
 
-sub 
 main()
     Pessoa a
     print("digite seu nome:")

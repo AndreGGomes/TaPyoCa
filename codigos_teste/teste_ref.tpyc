@@ -12,8 +12,9 @@ endsub
 main()
     int x = 0
     int y = 5
+    print("digite o valor de x:")
     ler_e_dobrar(ref x)
     trocar(ref x, ref y)
-    print(x)
-    print(y)
+    print("valor de x:", x)
+    print("valor de y:", y)
 endmain
