@@ -63,6 +63,11 @@ static void pr(const char *f, ...) {
 
 static FILE *out_c = NULL;
 
+static int novo_label(void) {
+    static int label_count = 0;
+    return label_count++;
+}
+
 /* Emite uma linha indentada no arquivo C */
 static void emit_c(const char *f, ...) {
     if (!out_c) return;
@@ -453,15 +458,25 @@ declaracaovar
                     erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em '%s'.", $2);
                 } else {
                     char *t_c = tipo_para_c(t_var);
+                    int l_ok = novo_label();
                     if (t_var.base == TIPO_INT) {
                         emit_c("%s %s;", t_c, $2);
-                        emit_c("if (scanf(\"%%d\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'int'.\\n\"); exit(1); }", $2);
+                        emit_c("if( scanf(\"%%d\", &%s) == 1 ) goto L%d;", $2, l_ok);
+                        emit_c("fprintf(stderr, \"Erro em tempo de execucao: esperado 'int'.\\n\");");
+                        emit_c("exit(1);");
+                        emit_c("L%d:;", l_ok);
                     } else if (t_var.base == TIPO_REAL) {
                         emit_c("%s %s;", t_c, $2);
-                        emit_c("if (scanf(\"%%lf\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'real'.\\n\"); exit(1); }", $2);
+                        emit_c("if( scanf(\"%%lf\", &%s) == 1 ) goto L%d;", $2, l_ok);
+                        emit_c("fprintf(stderr, \"Erro em tempo de execucao: esperado 'real'.\\n\");");
+                        emit_c("exit(1);");
+                        emit_c("L%d:;", l_ok);
                     } else if (t_var.base == TIPO_STRING) {
                         emit_c("char *%s = malloc(256);", $2);
-                        emit_c("if (scanf(\"%%255s\", %s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'string'.\\n\"); exit(1); }", $2);
+                        emit_c("if( scanf(\"%%255s\", %s) == 1 ) goto L%d;", $2, l_ok);
+                        emit_c("fprintf(stderr, \"Erro em tempo de execucao: esperado 'string'.\\n\");");
+                        emit_c("exit(1);");
+                        emit_c("L%d:;", l_ok);
                     }
                     free(t_c);
                 }
@@ -517,12 +532,24 @@ atribuicao
                 if ($1.tipo.dimensao > 0 || $1.tipo.base == TIPO_STRUCT) {
                     erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em '%s'.", $1.texto);
                 } else if ($1.tipo.base == TIPO_INT) {
-                    emit_c("if (scanf(\"%%d\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'int'.\\n\"); exit(1); }", $1.texto);
+                    int l_ok = novo_label();
+                    emit_c("if( scanf(\"%%d\", &%s) == 1 ) goto L%d;", $1.texto, l_ok);
+                    emit_c("fprintf(stderr, \"Erro em tempo de execucao: esperado 'int'.\\n\");");
+                    emit_c("exit(1);");
+                    emit_c("L%d:;", l_ok);
                 } else if ($1.tipo.base == TIPO_REAL) {
-                    emit_c("if (scanf(\"%%lf\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'real'.\\n\"); exit(1); }", $1.texto);
+                    int l_ok = novo_label();
+                    emit_c("if( scanf(\"%%lf\", &%s) == 1 ) goto L%d;", $1.texto, l_ok);
+                    emit_c("fprintf(stderr, \"Erro em tempo de execucao: esperado 'real'.\\n\");");
+                    emit_c("exit(1);");
+                    emit_c("L%d:;", l_ok);
                 } else if ($1.tipo.base == TIPO_STRING) {
+                    int l_ok = novo_label();
                     emit_c("%s = malloc(256);", $1.texto);
-                    emit_c("if (scanf(\"%%255s\", %s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'string'.\\n\"); exit(1); }", $1.texto);
+                    emit_c("if( scanf(\"%%255s\", %s) == 1 ) goto L%d;", $1.texto, l_ok);
+                    emit_c("fprintf(stderr, \"Erro em tempo de execucao: esperado 'string'.\\n\");");
+                    emit_c("exit(1);");
+                    emit_c("L%d:;", l_ok);
                 }
             }
             free($1.texto);

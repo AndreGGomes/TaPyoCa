@@ -6,7 +6,7 @@ endstruct
 main()
     Pessoa a
     print("digite seu nome:")
-    a.nome = read()
+    a.nome = "andre"
     print("digite sua idade:")
     a.idade = read()
 
