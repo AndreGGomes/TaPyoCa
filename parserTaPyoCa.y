@@ -15,12 +15,20 @@
         char *texto;
     } ListaArgs;
 }
+
 %{
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
 #include "semantico.h"
+#define MAX_IFS 100
+#define MAX_LOOPS 100
+
+typedef struct {
+    char *inicio;
+    char *fim;
+    } LoopLabels;
 
 int yylex(void);
 int yyerror(char *s);
@@ -31,6 +39,11 @@ extern char *yytext;
 
 static int depth = 0;   /* nivel de aninhamento atual (4 espacos por tab) */
 static int loop_depth = 0;  /* controla quantos laços estão ativos */
+static int label_counter = 0; /* contador de labels */
+static char *if_stack[MAX_IFS];
+static int if_top = -1;
+static LoopLabels loop_stack[MAX_LOOPS];
+static int loop_top = -1;
 
 /* Monta uma string nova (malloc) estilo printf. Quem recebe deve dar free. */
 static char *fmt(const char *f, ...) {
@@ -66,6 +79,56 @@ static void emit_c(const char *f, ...) {
     vfprintf(out_c, f, ap);
     va_end(ap);
     fprintf(out_c, "\n");
+}
+
+static char *new_label(void) {
+    char buffer[32];
+
+    snprintf(buffer, sizeof(buffer), "L%d", label_counter++);
+
+    return strdup(buffer);
+}
+
+static void reset_labels(void) { /* zera o contador de labels */
+    label_counter = 0;
+}
+
+static void push_if(char *label) { /* funcoes de adicionar e remover ifs respectivamente */
+    if (if_top >= MAX_IFS - 1) {
+        fprintf(stderr, "Erro: limite de ifs aninhados excedido.\n");
+        exit(1);
+    }
+
+    if_stack[++if_top] = label;
+}
+
+static char *pop_if(void) {
+    if (if_top < 0) {
+        return NULL;
+    }
+
+    return if_stack[if_top--];
+}
+
+static void push_loop(char *inicio, char *fim) { /* funções de adicionar e remover laços respectivamente */
+    if (loop_top >= MAX_LOOPS - 1) {
+        fprintf(stderr, "Erro: limite de lacos aninhados excedido.\n");
+        exit(1);
+    }
+
+    loop_top++;
+
+    loop_stack[loop_top].inicio = inicio;
+    loop_stack[loop_top].fim = fim;
+}
+
+static void pop_loop(void) {
+    if (loop_top >= 0) {
+        free(loop_stack[loop_top].inicio);
+        free(loop_stack[loop_top].fim);
+
+        loop_top--;
+    }
 }
 
 /* Converte Tipo (TaPyoCa) para sintaxe C
@@ -463,24 +526,59 @@ atribuicao
 comandowhile
     : WHILE LPAREN expressao RPAREN
         {
+            char *label_inicio = new_label();
+            char *label_fim = new_label();
+
             pr("[while] while (%s)", $3.texto);
-            if ($3.tipo.base != TIPO_ERRO && ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
-                erro_semantico(yylineno, "Condicao do 'while' deve ser logica/inteira, recebeu '%s'.",
-                               tipo_para_string($3.tipo));
+
+            /* Valida a condicao do while */
+            if ($3.tipo.base != TIPO_ERRO &&
+                ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
+
+                erro_semantico(yylineno,
+                    "Condicao do 'while' deve ser logica/inteira, recebeu '%s'.",
+                    tipo_para_string($3.tipo));
             }
-            emit_c("while (%s) {", $3.texto);
+
+            /* Armazena as labels na pilha */
+            push_loop(label_inicio, label_fim);
+
+            /* Gera a label de inicio */
+            emit_c("%s:", label_inicio);
+
+            /* Verifica a condicao e permite sair do laco */
+            emit_c("if (!(%s)) goto %s;", $3.texto, label_fim);
+
+            /* Abre um bloco para preservar o escopo */
+            emit_c("{");
+
             depth++;
             loop_depth++;
+
             entrar_escopo();
+
             free($3.texto);
         }
 
       NEWLINE corpo_bloco ENDWHILE
         {
             sair_escopo();
+
             depth--;
             loop_depth--;
+
+            /* Fecha o bloco do laco */
             emit_c("}");
+
+            /* Retorna ao inicio do laco */
+            emit_c("goto %s;", loop_stack[loop_top].inicio);
+
+            /* Gera a label de saida */
+            emit_c("%s: ;", loop_stack[loop_top].fim);
+
+            /* Remove as labels da pilha */
+            pop_loop();
+
             pr("[endwhile]");
         }
     ;
@@ -488,9 +586,11 @@ comandowhile
 comandoif
     : IF LPAREN expressao RPAREN
         {
+            char *label_fim = new_label();
+
             pr("[if] if (%s)", $3.texto);
 
-            /* Verifica se a condicao possui tipo inteiro */
+            /* Valida a condicao */
             if ($3.tipo.base != TIPO_ERRO &&
                 ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
 
@@ -499,31 +599,36 @@ comandoif
                     tipo_para_string($3.tipo));
             }
 
-            /* Gera a abertura do if no codigo C */
-            emit_c("if (%s) {", $3.texto);
+            /* Armazena a label de encerramento */
+            push_if(label_fim);
 
-            /* Aumenta a indentacao do codigo gerado */
+            /* Gera o desvio caso a condicao seja falsa */
+            emit_c("if (!(%s)) goto %s;", $3.texto, label_fim);
+
             depth++;
 
-            /* Cria um novo escopo para o bloco */
             entrar_escopo();
 
             free($3.texto);
         }
       NEWLINE corpo_bloco ENDIF
         {
-            /* Encerra o escopo do bloco */
             sair_escopo();
 
-            /* Retorna ao nivel de indentacao anterior */
             depth--;
 
-            /* Gera o fechamento do if no codigo C */
-            emit_c("}");
+            /* Recupera a label de encerramento */
+            char *label_fim = pop_if();
+
+            /* Gera a label de saida */
+            emit_c("%s:", label_fim);
+
+            free(label_fim);
 
             pr("[endif]");
         }
     ;
+
 
 comandobreak
     : BREAK
@@ -534,8 +639,9 @@ comandobreak
                 erro_semantico(yylineno,
                     "Comando 'break' so pode ser utilizado dentro de um while.");
             }
-
-            emit_c("break;");
+            else {
+                emit_c("goto %s;", loop_stack[loop_top].fim);
+            }
         }
     ;
 
@@ -860,3 +966,4 @@ int yyerror(char *msg) {
     fprintf(stderr, "Linha %d: %s at '%s'\n", yylineno, msg, yytext);
     return 0;
 }
+ 

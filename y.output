@@ -1,0 +1,1755 @@
+Gramática
+
+    0 $accept: programa $end
+
+    1 programa: declaracoes_globais
+
+    2 declaracoes_globais: declaracoes_globais declaracao
+    3                    | declaracao
+
+    4 declaracao: subrotina
+    5           | main_block
+    6           | declaracao_struct
+
+    7 $@1: ε
+
+    8 declaracao_struct: STRUCT ID $@1 NEWLINE corpo_struct ENDSTRUCT NEWLINE
+
+    9 corpo_struct: INDENT campos DEDENT
+   10             | ε
+
+   11 campos: campos campo NEWLINE
+   12       | ε
+
+   13 campo: tipo ID
+
+   14 $@2: ε
+
+   15 main_block: MAIN LPAREN RPAREN $@2 NEWLINE corpo_bloco ENDMAIN NEWLINE
+
+   16 $@3: ε
+
+   17 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+   18 tipo_opt: tipo
+   19         | ε
+
+   20 parametros_opt: lista_parametros
+   21               | ε
+
+   22 lista_parametros: lista_parametros COMMA tipo ID
+   23                 | tipo ID
+
+   24 comandos: comandos comando NEWLINE
+   25         | ε
+
+   26 corpo_bloco: INDENT comandos DEDENT
+   27            | ε
+
+   28 comando: declaracaovar
+   29        | atribuicao
+   30        | comandoif
+   31        | comandowhile
+   32        | comandobreak
+   33        | chamadafuncao
+   34        | retorno
+   35        | comandoprint
+
+   36 comandoprint: PRINT LPAREN argumentos_opt RPAREN
+
+   37 declaracaovar: tipo ID ASSIGN READ LPAREN RPAREN
+   38              | tipo ID ASSIGN expressao
+   39              | tipo ID
+
+   40 atribuicao: l_value ASSIGN READ LPAREN RPAREN
+   41           | l_value ASSIGN expressao
+
+   42 $@4: ε
+
+   43 comandowhile: WHILE LPAREN expressao RPAREN $@4 NEWLINE corpo_bloco ENDWHILE
+
+   44 $@5: ε
+
+   45 comandoif: IF LPAREN expressao RPAREN $@5 NEWLINE corpo_bloco ENDIF
+
+   46 comandobreak: BREAK
+
+   47 retorno: RETURN expressao
+
+   48 chamadafuncao: ID LPAREN argumentos_opt RPAREN
+
+   49 argumentos_opt: lista_argumentos
+   50               | ε
+
+   51 lista_argumentos: lista_argumentos COMMA expressao
+   52                 | expressao
+
+   53 tipo: INT
+   54     | REAL
+   55     | STRING
+   56     | STRUCT_ID
+   57     | tipo LBRACKET RBRACKET
+
+   58 expressao: exprelacional
+
+   59 exprelacional: exparitimetica op_relacional exparitimetica
+   60              | exparitimetica
+
+   61 op_relacional: LT
+   62              | LEQ
+   63              | GT
+   64              | GEQ
+   65              | EQ
+   66              | NEQ
+
+   67 exparitimetica: exparitimetica PLUS termo
+   68               | exparitimetica MINUS termo
+   69               | termo
+
+   70 termo: termo MUL fator
+   71      | termo DIV fator
+   72      | fator
+
+   73 l_value: ID
+   74        | l_value LBRACKET expressao RBRACKET
+   75        | l_value DOT ID
+
+   76 fator: chamadafuncao
+   77      | l_value
+   78      | INT_NUM
+   79      | REAL_NUM
+   80      | STRING_LITERAL
+   81      | arrayLiteral
+   82      | LPAREN expressao RPAREN
+
+   83 arrayLiteral: LBRACKET array_elements_opt RBRACKET
+
+   84 array_elements_opt: lista_argumentos
+   85                   | ε
+
+
+Terminais, com as regras onde eles aparecem
+
+    $end (0) 0
+    error (256)
+    MAIN (258) 15
+    LPAREN (259) 15 17 36 37 40 43 45 48 82
+    RPAREN (260) 15 17 36 37 40 43 45 48 82
+    NEWLINE (261) 8 11 15 17 24 43 45
+    INDENT (262) 9 26
+    DEDENT (263) 9 26
+    ENDMAIN (264) 15
+    SUB (265) 17
+    ENDSUB (266) 17
+    COMMA (267) 22 51
+    ASSIGN (268) 37 38 40 41
+    RETURN (269) 47
+    IF (270) 45
+    ENDIF (271) 45
+    WHILE (272) 43
+    ENDWHILE (273) 43
+    INT (274) 53
+    LBRACKET (275) 57 74 83
+    RBRACKET (276) 57 74 83
+    STRING (277) 55
+    REAL (278) 54
+    LT (279) 61
+    LEQ (280) 62
+    GT (281) 63
+    GEQ (282) 64
+    EQ (283) 65
+    NEQ (284) 66
+    PLUS (285) 67
+    MINUS (286) 68
+    MUL (287) 70
+    DIV (288) 71
+    PRINT (289) 36
+    READ (290) 37 40
+    STRUCT (291) 8
+    ENDSTRUCT (292) 8
+    DOT (293) 75
+    BREAK (294) 46
+    INT_NUM <ival> (295) 78
+    REAL_NUM <fval> (296) 79
+    ID <sval> (297) 8 13 17 22 23 37 38 39 48 73 75
+    STRUCT_ID <sval> (298) 56
+    STRING_LITERAL <sval> (299) 80
+
+
+Não terminais com as regras onde eles aparecem
+
+    $accept (45)
+        à esquerda: 0
+    programa (46)
+        à esquerda: 1
+        à direita: 0
+    declaracoes_globais (47)
+        à esquerda: 2 3
+        à direita: 1 2
+    declaracao (48)
+        à esquerda: 4 5 6
+        à direita: 2 3
+    declaracao_struct (49)
+        à esquerda: 8
+        à direita: 6
+    $@1 (50)
+        à esquerda: 7
+        à direita: 8
+    corpo_struct (51)
+        à esquerda: 9 10
+        à direita: 8
+    campos (52)
+        à esquerda: 11 12
+        à direita: 9 11
+    campo (53)
+        à esquerda: 13
+        à direita: 11
+    main_block (54)
+        à esquerda: 15
+        à direita: 5
+    $@2 (55)
+        à esquerda: 14
+        à direita: 15
+    subrotina (56)
+        à esquerda: 17
+        à direita: 4
+    $@3 (57)
+        à esquerda: 16
+        à direita: 17
+    tipo_opt <sval> (58)
+        à esquerda: 18 19
+        à direita: 17
+    parametros_opt <plist> (59)
+        à esquerda: 20 21
+        à direita: 17
+    lista_parametros <plist> (60)
+        à esquerda: 22 23
+        à direita: 20 22
+    comandos (61)
+        à esquerda: 24 25
+        à direita: 24 26
+    corpo_bloco (62)
+        à esquerda: 26 27
+        à direita: 15 17 43 45
+    comando (63)
+        à esquerda: 28 29 30 31 32 33 34 35
+        à direita: 24
+    comandoprint (64)
+        à esquerda: 36
+        à direita: 35
+    declaracaovar (65)
+        à esquerda: 37 38 39
+        à direita: 28
+    atribuicao (66)
+        à esquerda: 40 41
+        à direita: 29
+    comandowhile (67)
+        à esquerda: 43
+        à direita: 31
+    $@4 (68)
+        à esquerda: 42
+        à direita: 43
+    comandoif (69)
+        à esquerda: 45
+        à direita: 30
+    $@5 (70)
+        à esquerda: 44
+        à direita: 45
+    comandobreak (71)
+        à esquerda: 46
+        à direita: 32
+    retorno (72)
+        à esquerda: 47
+        à direita: 34
+    chamadafuncao <expr> (73)
+        à esquerda: 48
+        à direita: 33 76
+    argumentos_opt <alist> (74)
+        à esquerda: 49 50
+        à direita: 36 48
+    lista_argumentos <alist> (75)
+        à esquerda: 51 52
+        à direita: 49 51 84
+    tipo <sval> (76)
+        à esquerda: 53 54 55 56 57
+        à direita: 13 18 22 23 37 38 39 57
+    expressao <expr> (77)
+        à esquerda: 58
+        à direita: 38 41 43 45 47 51 52 74 82
+    exprelacional <expr> (78)
+        à esquerda: 59 60
+        à direita: 58
+    op_relacional <sval> (79)
+        à esquerda: 61 62 63 64 65 66
+        à direita: 59
+    exparitimetica <expr> (80)
+        à esquerda: 67 68 69
+        à direita: 59 60 67 68
+    termo <expr> (81)
+        à esquerda: 70 71 72
+        à direita: 67 68 69 70 71
+    l_value <expr> (82)
+        à esquerda: 73 74 75
+        à direita: 40 41 74 75 77
+    fator <expr> (83)
+        à esquerda: 76 77 78 79 80 81 82
+        à direita: 70 71 72
+    arrayLiteral <expr> (84)
+        à esquerda: 83
+        à direita: 81
+    array_elements_opt <alist> (85)
+        à esquerda: 84 85
+        à direita: 83
+
+
+Estado 0
+
+    0 $accept: • programa $end
+
+    MAIN    deslocar, e ir ao estado 1
+    SUB     deslocar, e ir ao estado 2
+    STRUCT  deslocar, e ir ao estado 3
+
+    programa             ir ao estado 4
+    declaracoes_globais  ir ao estado 5
+    declaracao           ir ao estado 6
+    declaracao_struct    ir ao estado 7
+    main_block           ir ao estado 8
+    subrotina            ir ao estado 9
+
+
+Estado 1
+
+   15 main_block: MAIN • LPAREN RPAREN $@2 NEWLINE corpo_bloco ENDMAIN NEWLINE
+
+    LPAREN  deslocar, e ir ao estado 10
+
+
+Estado 2
+
+   17 subrotina: SUB • tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    INT        deslocar, e ir ao estado 11
+    STRING     deslocar, e ir ao estado 12
+    REAL       deslocar, e ir ao estado 13
+    STRUCT_ID  deslocar, e ir ao estado 14
+
+    $padrão  reduzir usando a regra 19 (tipo_opt)
+
+    tipo_opt  ir ao estado 15
+    tipo      ir ao estado 16
+
+
+Estado 3
+
+    8 declaracao_struct: STRUCT • ID $@1 NEWLINE corpo_struct ENDSTRUCT NEWLINE
+
+    ID  deslocar, e ir ao estado 17
+
+
+Estado 4
+
+    0 $accept: programa • $end
+
+    $end  deslocar, e ir ao estado 18
+
+
+Estado 5
+
+    1 programa: declaracoes_globais •
+    2 declaracoes_globais: declaracoes_globais • declaracao
+
+    MAIN    deslocar, e ir ao estado 1
+    SUB     deslocar, e ir ao estado 2
+    STRUCT  deslocar, e ir ao estado 3
+
+    $padrão  reduzir usando a regra 1 (programa)
+
+    declaracao         ir ao estado 19
+    declaracao_struct  ir ao estado 7
+    main_block         ir ao estado 8
+    subrotina          ir ao estado 9
+
+
+Estado 6
+
+    3 declaracoes_globais: declaracao •
+
+    $padrão  reduzir usando a regra 3 (declaracoes_globais)
+
+
+Estado 7
+
+    6 declaracao: declaracao_struct •
+
+    $padrão  reduzir usando a regra 6 (declaracao)
+
+
+Estado 8
+
+    5 declaracao: main_block •
+
+    $padrão  reduzir usando a regra 5 (declaracao)
+
+
+Estado 9
+
+    4 declaracao: subrotina •
+
+    $padrão  reduzir usando a regra 4 (declaracao)
+
+
+Estado 10
+
+   15 main_block: MAIN LPAREN • RPAREN $@2 NEWLINE corpo_bloco ENDMAIN NEWLINE
+
+    RPAREN  deslocar, e ir ao estado 20
+
+
+Estado 11
+
+   53 tipo: INT •
+
+    $padrão  reduzir usando a regra 53 (tipo)
+
+
+Estado 12
+
+   55 tipo: STRING •
+
+    $padrão  reduzir usando a regra 55 (tipo)
+
+
+Estado 13
+
+   54 tipo: REAL •
+
+    $padrão  reduzir usando a regra 54 (tipo)
+
+
+Estado 14
+
+   56 tipo: STRUCT_ID •
+
+    $padrão  reduzir usando a regra 56 (tipo)
+
+
+Estado 15
+
+   17 subrotina: SUB tipo_opt • ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    ID  deslocar, e ir ao estado 21
+
+
+Estado 16
+
+   18 tipo_opt: tipo •
+   57 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  deslocar, e ir ao estado 22
+
+    $padrão  reduzir usando a regra 18 (tipo_opt)
+
+
+Estado 17
+
+    8 declaracao_struct: STRUCT ID • $@1 NEWLINE corpo_struct ENDSTRUCT NEWLINE
+
+    $padrão  reduzir usando a regra 7 ($@1)
+
+    $@1  ir ao estado 23
+
+
+Estado 18
+
+    0 $accept: programa $end •
+
+    $padrão  aceitar
+
+
+Estado 19
+
+    2 declaracoes_globais: declaracoes_globais declaracao •
+
+    $padrão  reduzir usando a regra 2 (declaracoes_globais)
+
+
+Estado 20
+
+   15 main_block: MAIN LPAREN RPAREN • $@2 NEWLINE corpo_bloco ENDMAIN NEWLINE
+
+    $padrão  reduzir usando a regra 14 ($@2)
+
+    $@2  ir ao estado 24
+
+
+Estado 21
+
+   17 subrotina: SUB tipo_opt ID • LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    LPAREN  deslocar, e ir ao estado 25
+
+
+Estado 22
+
+   57 tipo: tipo LBRACKET • RBRACKET
+
+    RBRACKET  deslocar, e ir ao estado 26
+
+
+Estado 23
+
+    8 declaracao_struct: STRUCT ID $@1 • NEWLINE corpo_struct ENDSTRUCT NEWLINE
+
+    NEWLINE  deslocar, e ir ao estado 27
+
+
+Estado 24
+
+   15 main_block: MAIN LPAREN RPAREN $@2 • NEWLINE corpo_bloco ENDMAIN NEWLINE
+
+    NEWLINE  deslocar, e ir ao estado 28
+
+
+Estado 25
+
+   17 subrotina: SUB tipo_opt ID LPAREN • parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    INT        deslocar, e ir ao estado 11
+    STRING     deslocar, e ir ao estado 12
+    REAL       deslocar, e ir ao estado 13
+    STRUCT_ID  deslocar, e ir ao estado 14
+
+    $padrão  reduzir usando a regra 21 (parametros_opt)
+
+    parametros_opt    ir ao estado 29
+    lista_parametros  ir ao estado 30
+    tipo              ir ao estado 31
+
+
+Estado 26
+
+   57 tipo: tipo LBRACKET RBRACKET •
+
+    $padrão  reduzir usando a regra 57 (tipo)
+
+
+Estado 27
+
+    8 declaracao_struct: STRUCT ID $@1 NEWLINE • corpo_struct ENDSTRUCT NEWLINE
+
+    INDENT  deslocar, e ir ao estado 32
+
+    $padrão  reduzir usando a regra 10 (corpo_struct)
+
+    corpo_struct  ir ao estado 33
+
+
+Estado 28
+
+   15 main_block: MAIN LPAREN RPAREN $@2 NEWLINE • corpo_bloco ENDMAIN NEWLINE
+
+    INDENT  deslocar, e ir ao estado 34
+
+    $padrão  reduzir usando a regra 27 (corpo_bloco)
+
+    corpo_bloco  ir ao estado 35
+
+
+Estado 29
+
+   17 subrotina: SUB tipo_opt ID LPAREN parametros_opt • RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    RPAREN  deslocar, e ir ao estado 36
+
+
+Estado 30
+
+   20 parametros_opt: lista_parametros •
+   22 lista_parametros: lista_parametros • COMMA tipo ID
+
+    COMMA  deslocar, e ir ao estado 37
+
+    $padrão  reduzir usando a regra 20 (parametros_opt)
+
+
+Estado 31
+
+   23 lista_parametros: tipo • ID
+   57 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  deslocar, e ir ao estado 22
+    ID        deslocar, e ir ao estado 38
+
+
+Estado 32
+
+    9 corpo_struct: INDENT • campos DEDENT
+
+    $padrão  reduzir usando a regra 12 (campos)
+
+    campos  ir ao estado 39
+
+
+Estado 33
+
+    8 declaracao_struct: STRUCT ID $@1 NEWLINE corpo_struct • ENDSTRUCT NEWLINE
+
+    ENDSTRUCT  deslocar, e ir ao estado 40
+
+
+Estado 34
+
+   26 corpo_bloco: INDENT • comandos DEDENT
+
+    $padrão  reduzir usando a regra 25 (comandos)
+
+    comandos  ir ao estado 41
+
+
+Estado 35
+
+   15 main_block: MAIN LPAREN RPAREN $@2 NEWLINE corpo_bloco • ENDMAIN NEWLINE
+
+    ENDMAIN  deslocar, e ir ao estado 42
+
+
+Estado 36
+
+   17 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN • $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    $padrão  reduzir usando a regra 16 ($@3)
+
+    $@3  ir ao estado 43
+
+
+Estado 37
+
+   22 lista_parametros: lista_parametros COMMA • tipo ID
+
+    INT        deslocar, e ir ao estado 11
+    STRING     deslocar, e ir ao estado 12
+    REAL       deslocar, e ir ao estado 13
+    STRUCT_ID  deslocar, e ir ao estado 14
+
+    tipo  ir ao estado 44
+
+
+Estado 38
+
+   23 lista_parametros: tipo ID •
+
+    $padrão  reduzir usando a regra 23 (lista_parametros)
+
+
+Estado 39
+
+    9 corpo_struct: INDENT campos • DEDENT
+   11 campos: campos • campo NEWLINE
+
+    DEDENT     deslocar, e ir ao estado 45
+    INT        deslocar, e ir ao estado 11
+    STRING     deslocar, e ir ao estado 12
+    REAL       deslocar, e ir ao estado 13
+    STRUCT_ID  deslocar, e ir ao estado 14
+
+    campo  ir ao estado 46
+    tipo   ir ao estado 47
+
+
+Estado 40
+
+    8 declaracao_struct: STRUCT ID $@1 NEWLINE corpo_struct ENDSTRUCT • NEWLINE
+
+    NEWLINE  deslocar, e ir ao estado 48
+
+
+Estado 41
+
+   24 comandos: comandos • comando NEWLINE
+   26 corpo_bloco: INDENT comandos • DEDENT
+
+    DEDENT     deslocar, e ir ao estado 49
+    RETURN     deslocar, e ir ao estado 50
+    IF         deslocar, e ir ao estado 51
+    WHILE      deslocar, e ir ao estado 52
+    INT        deslocar, e ir ao estado 11
+    STRING     deslocar, e ir ao estado 12
+    REAL       deslocar, e ir ao estado 13
+    PRINT      deslocar, e ir ao estado 53
+    BREAK      deslocar, e ir ao estado 54
+    ID         deslocar, e ir ao estado 55
+    STRUCT_ID  deslocar, e ir ao estado 14
+
+    comando        ir ao estado 56
+    comandoprint   ir ao estado 57
+    declaracaovar  ir ao estado 58
+    atribuicao     ir ao estado 59
+    comandowhile   ir ao estado 60
+    comandoif      ir ao estado 61
+    comandobreak   ir ao estado 62
+    retorno        ir ao estado 63
+    chamadafuncao  ir ao estado 64
+    tipo           ir ao estado 65
+    l_value        ir ao estado 66
+
+
+Estado 42
+
+   15 main_block: MAIN LPAREN RPAREN $@2 NEWLINE corpo_bloco ENDMAIN • NEWLINE
+
+    NEWLINE  deslocar, e ir ao estado 67
+
+
+Estado 43
+
+   17 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 • NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    NEWLINE  deslocar, e ir ao estado 68
+
+
+Estado 44
+
+   22 lista_parametros: lista_parametros COMMA tipo • ID
+   57 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  deslocar, e ir ao estado 22
+    ID        deslocar, e ir ao estado 69
+
+
+Estado 45
+
+    9 corpo_struct: INDENT campos DEDENT •
+
+    $padrão  reduzir usando a regra 9 (corpo_struct)
+
+
+Estado 46
+
+   11 campos: campos campo • NEWLINE
+
+    NEWLINE  deslocar, e ir ao estado 70
+
+
+Estado 47
+
+   13 campo: tipo • ID
+   57 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  deslocar, e ir ao estado 22
+    ID        deslocar, e ir ao estado 71
+
+
+Estado 48
+
+    8 declaracao_struct: STRUCT ID $@1 NEWLINE corpo_struct ENDSTRUCT NEWLINE •
+
+    $padrão  reduzir usando a regra 8 (declaracao_struct)
+
+
+Estado 49
+
+   26 corpo_bloco: INDENT comandos DEDENT •
+
+    $padrão  reduzir usando a regra 26 (corpo_bloco)
+
+
+Estado 50
+
+   47 retorno: RETURN • expressao
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao   ir ao estado 77
+    expressao       ir ao estado 78
+    exprelacional   ir ao estado 79
+    exparitimetica  ir ao estado 80
+    termo           ir ao estado 81
+    l_value         ir ao estado 82
+    fator           ir ao estado 83
+    arrayLiteral    ir ao estado 84
+
+
+Estado 51
+
+   45 comandoif: IF • LPAREN expressao RPAREN $@5 NEWLINE corpo_bloco ENDIF
+
+    LPAREN  deslocar, e ir ao estado 85
+
+
+Estado 52
+
+   43 comandowhile: WHILE • LPAREN expressao RPAREN $@4 NEWLINE corpo_bloco ENDWHILE
+
+    LPAREN  deslocar, e ir ao estado 86
+
+
+Estado 53
+
+   36 comandoprint: PRINT • LPAREN argumentos_opt RPAREN
+
+    LPAREN  deslocar, e ir ao estado 87
+
+
+Estado 54
+
+   46 comandobreak: BREAK •
+
+    $padrão  reduzir usando a regra 46 (comandobreak)
+
+
+Estado 55
+
+   48 chamadafuncao: ID • LPAREN argumentos_opt RPAREN
+   73 l_value: ID •
+
+    LPAREN  deslocar, e ir ao estado 88
+
+    $padrão  reduzir usando a regra 73 (l_value)
+
+
+Estado 56
+
+   24 comandos: comandos comando • NEWLINE
+
+    NEWLINE  deslocar, e ir ao estado 89
+
+
+Estado 57
+
+   35 comando: comandoprint •
+
+    $padrão  reduzir usando a regra 35 (comando)
+
+
+Estado 58
+
+   28 comando: declaracaovar •
+
+    $padrão  reduzir usando a regra 28 (comando)
+
+
+Estado 59
+
+   29 comando: atribuicao •
+
+    $padrão  reduzir usando a regra 29 (comando)
+
+
+Estado 60
+
+   31 comando: comandowhile •
+
+    $padrão  reduzir usando a regra 31 (comando)
+
+
+Estado 61
+
+   30 comando: comandoif •
+
+    $padrão  reduzir usando a regra 30 (comando)
+
+
+Estado 62
+
+   32 comando: comandobreak •
+
+    $padrão  reduzir usando a regra 32 (comando)
+
+
+Estado 63
+
+   34 comando: retorno •
+
+    $padrão  reduzir usando a regra 34 (comando)
+
+
+Estado 64
+
+   33 comando: chamadafuncao •
+
+    $padrão  reduzir usando a regra 33 (comando)
+
+
+Estado 65
+
+   37 declaracaovar: tipo • ID ASSIGN READ LPAREN RPAREN
+   38              | tipo • ID ASSIGN expressao
+   39              | tipo • ID
+   57 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  deslocar, e ir ao estado 22
+    ID        deslocar, e ir ao estado 90
+
+
+Estado 66
+
+   40 atribuicao: l_value • ASSIGN READ LPAREN RPAREN
+   41           | l_value • ASSIGN expressao
+   74 l_value: l_value • LBRACKET expressao RBRACKET
+   75        | l_value • DOT ID
+
+    ASSIGN    deslocar, e ir ao estado 91
+    LBRACKET  deslocar, e ir ao estado 92
+    DOT       deslocar, e ir ao estado 93
+
+
+Estado 67
+
+   15 main_block: MAIN LPAREN RPAREN $@2 NEWLINE corpo_bloco ENDMAIN NEWLINE •
+
+    $padrão  reduzir usando a regra 15 (main_block)
+
+
+Estado 68
+
+   17 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE • corpo_bloco ENDSUB NEWLINE
+
+    INDENT  deslocar, e ir ao estado 34
+
+    $padrão  reduzir usando a regra 27 (corpo_bloco)
+
+    corpo_bloco  ir ao estado 94
+
+
+Estado 69
+
+   22 lista_parametros: lista_parametros COMMA tipo ID •
+
+    $padrão  reduzir usando a regra 22 (lista_parametros)
+
+
+Estado 70
+
+   11 campos: campos campo NEWLINE •
+
+    $padrão  reduzir usando a regra 11 (campos)
+
+
+Estado 71
+
+   13 campo: tipo ID •
+
+    $padrão  reduzir usando a regra 13 (campo)
+
+
+Estado 72
+
+   82 fator: LPAREN • expressao RPAREN
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao   ir ao estado 77
+    expressao       ir ao estado 95
+    exprelacional   ir ao estado 79
+    exparitimetica  ir ao estado 80
+    termo           ir ao estado 81
+    l_value         ir ao estado 82
+    fator           ir ao estado 83
+    arrayLiteral    ir ao estado 84
+
+
+Estado 73
+
+   83 arrayLiteral: LBRACKET • array_elements_opt RBRACKET
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    $padrão  reduzir usando a regra 85 (array_elements_opt)
+
+    chamadafuncao       ir ao estado 77
+    lista_argumentos    ir ao estado 96
+    expressao           ir ao estado 97
+    exprelacional       ir ao estado 79
+    exparitimetica      ir ao estado 80
+    termo               ir ao estado 81
+    l_value             ir ao estado 82
+    fator               ir ao estado 83
+    arrayLiteral        ir ao estado 84
+    array_elements_opt  ir ao estado 98
+
+
+Estado 74
+
+   78 fator: INT_NUM •
+
+    $padrão  reduzir usando a regra 78 (fator)
+
+
+Estado 75
+
+   79 fator: REAL_NUM •
+
+    $padrão  reduzir usando a regra 79 (fator)
+
+
+Estado 76
+
+   80 fator: STRING_LITERAL •
+
+    $padrão  reduzir usando a regra 80 (fator)
+
+
+Estado 77
+
+   76 fator: chamadafuncao •
+
+    $padrão  reduzir usando a regra 76 (fator)
+
+
+Estado 78
+
+   47 retorno: RETURN expressao •
+
+    $padrão  reduzir usando a regra 47 (retorno)
+
+
+Estado 79
+
+   58 expressao: exprelacional •
+
+    $padrão  reduzir usando a regra 58 (expressao)
+
+
+Estado 80
+
+   59 exprelacional: exparitimetica • op_relacional exparitimetica
+   60              | exparitimetica •
+   67 exparitimetica: exparitimetica • PLUS termo
+   68               | exparitimetica • MINUS termo
+
+    LT     deslocar, e ir ao estado 99
+    LEQ    deslocar, e ir ao estado 100
+    GT     deslocar, e ir ao estado 101
+    GEQ    deslocar, e ir ao estado 102
+    EQ     deslocar, e ir ao estado 103
+    NEQ    deslocar, e ir ao estado 104
+    PLUS   deslocar, e ir ao estado 105
+    MINUS  deslocar, e ir ao estado 106
+
+    $padrão  reduzir usando a regra 60 (exprelacional)
+
+    op_relacional  ir ao estado 107
+
+
+Estado 81
+
+   69 exparitimetica: termo •
+   70 termo: termo • MUL fator
+   71      | termo • DIV fator
+
+    MUL  deslocar, e ir ao estado 108
+    DIV  deslocar, e ir ao estado 109
+
+    $padrão  reduzir usando a regra 69 (exparitimetica)
+
+
+Estado 82
+
+   74 l_value: l_value • LBRACKET expressao RBRACKET
+   75        | l_value • DOT ID
+   77 fator: l_value •
+
+    LBRACKET  deslocar, e ir ao estado 92
+    DOT       deslocar, e ir ao estado 93
+
+    $padrão  reduzir usando a regra 77 (fator)
+
+
+Estado 83
+
+   72 termo: fator •
+
+    $padrão  reduzir usando a regra 72 (termo)
+
+
+Estado 84
+
+   81 fator: arrayLiteral •
+
+    $padrão  reduzir usando a regra 81 (fator)
+
+
+Estado 85
+
+   45 comandoif: IF LPAREN • expressao RPAREN $@5 NEWLINE corpo_bloco ENDIF
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao   ir ao estado 77
+    expressao       ir ao estado 110
+    exprelacional   ir ao estado 79
+    exparitimetica  ir ao estado 80
+    termo           ir ao estado 81
+    l_value         ir ao estado 82
+    fator           ir ao estado 83
+    arrayLiteral    ir ao estado 84
+
+
+Estado 86
+
+   43 comandowhile: WHILE LPAREN • expressao RPAREN $@4 NEWLINE corpo_bloco ENDWHILE
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao   ir ao estado 77
+    expressao       ir ao estado 111
+    exprelacional   ir ao estado 79
+    exparitimetica  ir ao estado 80
+    termo           ir ao estado 81
+    l_value         ir ao estado 82
+    fator           ir ao estado 83
+    arrayLiteral    ir ao estado 84
+
+
+Estado 87
+
+   36 comandoprint: PRINT LPAREN • argumentos_opt RPAREN
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    $padrão  reduzir usando a regra 50 (argumentos_opt)
+
+    chamadafuncao     ir ao estado 77
+    argumentos_opt    ir ao estado 112
+    lista_argumentos  ir ao estado 113
+    expressao         ir ao estado 97
+    exprelacional     ir ao estado 79
+    exparitimetica    ir ao estado 80
+    termo             ir ao estado 81
+    l_value           ir ao estado 82
+    fator             ir ao estado 83
+    arrayLiteral      ir ao estado 84
+
+
+Estado 88
+
+   48 chamadafuncao: ID LPAREN • argumentos_opt RPAREN
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    $padrão  reduzir usando a regra 50 (argumentos_opt)
+
+    chamadafuncao     ir ao estado 77
+    argumentos_opt    ir ao estado 114
+    lista_argumentos  ir ao estado 113
+    expressao         ir ao estado 97
+    exprelacional     ir ao estado 79
+    exparitimetica    ir ao estado 80
+    termo             ir ao estado 81
+    l_value           ir ao estado 82
+    fator             ir ao estado 83
+    arrayLiteral      ir ao estado 84
+
+
+Estado 89
+
+   24 comandos: comandos comando NEWLINE •
+
+    $padrão  reduzir usando a regra 24 (comandos)
+
+
+Estado 90
+
+   37 declaracaovar: tipo ID • ASSIGN READ LPAREN RPAREN
+   38              | tipo ID • ASSIGN expressao
+   39              | tipo ID •
+
+    ASSIGN  deslocar, e ir ao estado 115
+
+    $padrão  reduzir usando a regra 39 (declaracaovar)
+
+
+Estado 91
+
+   40 atribuicao: l_value ASSIGN • READ LPAREN RPAREN
+   41           | l_value ASSIGN • expressao
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    READ            deslocar, e ir ao estado 116
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao   ir ao estado 77
+    expressao       ir ao estado 117
+    exprelacional   ir ao estado 79
+    exparitimetica  ir ao estado 80
+    termo           ir ao estado 81
+    l_value         ir ao estado 82
+    fator           ir ao estado 83
+    arrayLiteral    ir ao estado 84
+
+
+Estado 92
+
+   74 l_value: l_value LBRACKET • expressao RBRACKET
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao   ir ao estado 77
+    expressao       ir ao estado 118
+    exprelacional   ir ao estado 79
+    exparitimetica  ir ao estado 80
+    termo           ir ao estado 81
+    l_value         ir ao estado 82
+    fator           ir ao estado 83
+    arrayLiteral    ir ao estado 84
+
+
+Estado 93
+
+   75 l_value: l_value DOT • ID
+
+    ID  deslocar, e ir ao estado 119
+
+
+Estado 94
+
+   17 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco • ENDSUB NEWLINE
+
+    ENDSUB  deslocar, e ir ao estado 120
+
+
+Estado 95
+
+   82 fator: LPAREN expressao • RPAREN
+
+    RPAREN  deslocar, e ir ao estado 121
+
+
+Estado 96
+
+   51 lista_argumentos: lista_argumentos • COMMA expressao
+   84 array_elements_opt: lista_argumentos •
+
+    COMMA  deslocar, e ir ao estado 122
+
+    $padrão  reduzir usando a regra 84 (array_elements_opt)
+
+
+Estado 97
+
+   52 lista_argumentos: expressao •
+
+    $padrão  reduzir usando a regra 52 (lista_argumentos)
+
+
+Estado 98
+
+   83 arrayLiteral: LBRACKET array_elements_opt • RBRACKET
+
+    RBRACKET  deslocar, e ir ao estado 123
+
+
+Estado 99
+
+   61 op_relacional: LT •
+
+    $padrão  reduzir usando a regra 61 (op_relacional)
+
+
+Estado 100
+
+   62 op_relacional: LEQ •
+
+    $padrão  reduzir usando a regra 62 (op_relacional)
+
+
+Estado 101
+
+   63 op_relacional: GT •
+
+    $padrão  reduzir usando a regra 63 (op_relacional)
+
+
+Estado 102
+
+   64 op_relacional: GEQ •
+
+    $padrão  reduzir usando a regra 64 (op_relacional)
+
+
+Estado 103
+
+   65 op_relacional: EQ •
+
+    $padrão  reduzir usando a regra 65 (op_relacional)
+
+
+Estado 104
+
+   66 op_relacional: NEQ •
+
+    $padrão  reduzir usando a regra 66 (op_relacional)
+
+
+Estado 105
+
+   67 exparitimetica: exparitimetica PLUS • termo
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao  ir ao estado 77
+    termo          ir ao estado 124
+    l_value        ir ao estado 82
+    fator          ir ao estado 83
+    arrayLiteral   ir ao estado 84
+
+
+Estado 106
+
+   68 exparitimetica: exparitimetica MINUS • termo
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao  ir ao estado 77
+    termo          ir ao estado 125
+    l_value        ir ao estado 82
+    fator          ir ao estado 83
+    arrayLiteral   ir ao estado 84
+
+
+Estado 107
+
+   59 exprelacional: exparitimetica op_relacional • exparitimetica
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao   ir ao estado 77
+    exparitimetica  ir ao estado 126
+    termo           ir ao estado 81
+    l_value         ir ao estado 82
+    fator           ir ao estado 83
+    arrayLiteral    ir ao estado 84
+
+
+Estado 108
+
+   70 termo: termo MUL • fator
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao  ir ao estado 77
+    l_value        ir ao estado 82
+    fator          ir ao estado 127
+    arrayLiteral   ir ao estado 84
+
+
+Estado 109
+
+   71 termo: termo DIV • fator
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao  ir ao estado 77
+    l_value        ir ao estado 82
+    fator          ir ao estado 128
+    arrayLiteral   ir ao estado 84
+
+
+Estado 110
+
+   45 comandoif: IF LPAREN expressao • RPAREN $@5 NEWLINE corpo_bloco ENDIF
+
+    RPAREN  deslocar, e ir ao estado 129
+
+
+Estado 111
+
+   43 comandowhile: WHILE LPAREN expressao • RPAREN $@4 NEWLINE corpo_bloco ENDWHILE
+
+    RPAREN  deslocar, e ir ao estado 130
+
+
+Estado 112
+
+   36 comandoprint: PRINT LPAREN argumentos_opt • RPAREN
+
+    RPAREN  deslocar, e ir ao estado 131
+
+
+Estado 113
+
+   49 argumentos_opt: lista_argumentos •
+   51 lista_argumentos: lista_argumentos • COMMA expressao
+
+    COMMA  deslocar, e ir ao estado 122
+
+    $padrão  reduzir usando a regra 49 (argumentos_opt)
+
+
+Estado 114
+
+   48 chamadafuncao: ID LPAREN argumentos_opt • RPAREN
+
+    RPAREN  deslocar, e ir ao estado 132
+
+
+Estado 115
+
+   37 declaracaovar: tipo ID ASSIGN • READ LPAREN RPAREN
+   38              | tipo ID ASSIGN • expressao
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    READ            deslocar, e ir ao estado 133
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao   ir ao estado 77
+    expressao       ir ao estado 134
+    exprelacional   ir ao estado 79
+    exparitimetica  ir ao estado 80
+    termo           ir ao estado 81
+    l_value         ir ao estado 82
+    fator           ir ao estado 83
+    arrayLiteral    ir ao estado 84
+
+
+Estado 116
+
+   40 atribuicao: l_value ASSIGN READ • LPAREN RPAREN
+
+    LPAREN  deslocar, e ir ao estado 135
+
+
+Estado 117
+
+   41 atribuicao: l_value ASSIGN expressao •
+
+    $padrão  reduzir usando a regra 41 (atribuicao)
+
+
+Estado 118
+
+   74 l_value: l_value LBRACKET expressao • RBRACKET
+
+    RBRACKET  deslocar, e ir ao estado 136
+
+
+Estado 119
+
+   75 l_value: l_value DOT ID •
+
+    $padrão  reduzir usando a regra 75 (l_value)
+
+
+Estado 120
+
+   17 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB • NEWLINE
+
+    NEWLINE  deslocar, e ir ao estado 137
+
+
+Estado 121
+
+   82 fator: LPAREN expressao RPAREN •
+
+    $padrão  reduzir usando a regra 82 (fator)
+
+
+Estado 122
+
+   51 lista_argumentos: lista_argumentos COMMA • expressao
+
+    LPAREN          deslocar, e ir ao estado 72
+    LBRACKET        deslocar, e ir ao estado 73
+    INT_NUM         deslocar, e ir ao estado 74
+    REAL_NUM        deslocar, e ir ao estado 75
+    ID              deslocar, e ir ao estado 55
+    STRING_LITERAL  deslocar, e ir ao estado 76
+
+    chamadafuncao   ir ao estado 77
+    expressao       ir ao estado 138
+    exprelacional   ir ao estado 79
+    exparitimetica  ir ao estado 80
+    termo           ir ao estado 81
+    l_value         ir ao estado 82
+    fator           ir ao estado 83
+    arrayLiteral    ir ao estado 84
+
+
+Estado 123
+
+   83 arrayLiteral: LBRACKET array_elements_opt RBRACKET •
+
+    $padrão  reduzir usando a regra 83 (arrayLiteral)
+
+
+Estado 124
+
+   67 exparitimetica: exparitimetica PLUS termo •
+   70 termo: termo • MUL fator
+   71      | termo • DIV fator
+
+    MUL  deslocar, e ir ao estado 108
+    DIV  deslocar, e ir ao estado 109
+
+    $padrão  reduzir usando a regra 67 (exparitimetica)
+
+
+Estado 125
+
+   68 exparitimetica: exparitimetica MINUS termo •
+   70 termo: termo • MUL fator
+   71      | termo • DIV fator
+
+    MUL  deslocar, e ir ao estado 108
+    DIV  deslocar, e ir ao estado 109
+
+    $padrão  reduzir usando a regra 68 (exparitimetica)
+
+
+Estado 126
+
+   59 exprelacional: exparitimetica op_relacional exparitimetica •
+   67 exparitimetica: exparitimetica • PLUS termo
+   68               | exparitimetica • MINUS termo
+
+    PLUS   deslocar, e ir ao estado 105
+    MINUS  deslocar, e ir ao estado 106
+
+    $padrão  reduzir usando a regra 59 (exprelacional)
+
+
+Estado 127
+
+   70 termo: termo MUL fator •
+
+    $padrão  reduzir usando a regra 70 (termo)
+
+
+Estado 128
+
+   71 termo: termo DIV fator •
+
+    $padrão  reduzir usando a regra 71 (termo)
+
+
+Estado 129
+
+   45 comandoif: IF LPAREN expressao RPAREN • $@5 NEWLINE corpo_bloco ENDIF
+
+    $padrão  reduzir usando a regra 44 ($@5)
+
+    $@5  ir ao estado 139
+
+
+Estado 130
+
+   43 comandowhile: WHILE LPAREN expressao RPAREN • $@4 NEWLINE corpo_bloco ENDWHILE
+
+    $padrão  reduzir usando a regra 42 ($@4)
+
+    $@4  ir ao estado 140
+
+
+Estado 131
+
+   36 comandoprint: PRINT LPAREN argumentos_opt RPAREN •
+
+    $padrão  reduzir usando a regra 36 (comandoprint)
+
+
+Estado 132
+
+   48 chamadafuncao: ID LPAREN argumentos_opt RPAREN •
+
+    $padrão  reduzir usando a regra 48 (chamadafuncao)
+
+
+Estado 133
+
+   37 declaracaovar: tipo ID ASSIGN READ • LPAREN RPAREN
+
+    LPAREN  deslocar, e ir ao estado 141
+
+
+Estado 134
+
+   38 declaracaovar: tipo ID ASSIGN expressao •
+
+    $padrão  reduzir usando a regra 38 (declaracaovar)
+
+
+Estado 135
+
+   40 atribuicao: l_value ASSIGN READ LPAREN • RPAREN
+
+    RPAREN  deslocar, e ir ao estado 142
+
+
+Estado 136
+
+   74 l_value: l_value LBRACKET expressao RBRACKET •
+
+    $padrão  reduzir usando a regra 74 (l_value)
+
+
+Estado 137
+
+   17 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE •
+
+    $padrão  reduzir usando a regra 17 (subrotina)
+
+
+Estado 138
+
+   51 lista_argumentos: lista_argumentos COMMA expressao •
+
+    $padrão  reduzir usando a regra 51 (lista_argumentos)
+
+
+Estado 139
+
+   45 comandoif: IF LPAREN expressao RPAREN $@5 • NEWLINE corpo_bloco ENDIF
+
+    NEWLINE  deslocar, e ir ao estado 143
+
+
+Estado 140
+
+   43 comandowhile: WHILE LPAREN expressao RPAREN $@4 • NEWLINE corpo_bloco ENDWHILE
+
+    NEWLINE  deslocar, e ir ao estado 144
+
+
+Estado 141
+
+   37 declaracaovar: tipo ID ASSIGN READ LPAREN • RPAREN
+
+    RPAREN  deslocar, e ir ao estado 145
+
+
+Estado 142
+
+   40 atribuicao: l_value ASSIGN READ LPAREN RPAREN •
+
+    $padrão  reduzir usando a regra 40 (atribuicao)
+
+
+Estado 143
+
+   45 comandoif: IF LPAREN expressao RPAREN $@5 NEWLINE • corpo_bloco ENDIF
+
+    INDENT  deslocar, e ir ao estado 34
+
+    $padrão  reduzir usando a regra 27 (corpo_bloco)
+
+    corpo_bloco  ir ao estado 146
+
+
+Estado 144
+
+   43 comandowhile: WHILE LPAREN expressao RPAREN $@4 NEWLINE • corpo_bloco ENDWHILE
+
+    INDENT  deslocar, e ir ao estado 34
+
+    $padrão  reduzir usando a regra 27 (corpo_bloco)
+
+    corpo_bloco  ir ao estado 147
+
+
+Estado 145
+
+   37 declaracaovar: tipo ID ASSIGN READ LPAREN RPAREN •
+
+    $padrão  reduzir usando a regra 37 (declaracaovar)
+
+
+Estado 146
+
+   45 comandoif: IF LPAREN expressao RPAREN $@5 NEWLINE corpo_bloco • ENDIF
+
+    ENDIF  deslocar, e ir ao estado 148
+
+
+Estado 147
+
+   43 comandowhile: WHILE LPAREN expressao RPAREN $@4 NEWLINE corpo_bloco • ENDWHILE
+
+    ENDWHILE  deslocar, e ir ao estado 149
+
+
+Estado 148
+
+   45 comandoif: IF LPAREN expressao RPAREN $@5 NEWLINE corpo_bloco ENDIF •
+
+    $padrão  reduzir usando a regra 45 (comandoif)
+
+
+Estado 149
+
+   43 comandowhile: WHILE LPAREN expressao RPAREN $@4 NEWLINE corpo_bloco ENDWHILE •
+
+    $padrão  reduzir usando a regra 43 (comandowhile)

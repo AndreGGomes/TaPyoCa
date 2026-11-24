@@ -1,0 +1,10 @@
+main()
+    int idade = 20
+    int aprovado = 1
+
+    if (idade >= 18)
+        if (aprovado == 1)
+            print("Aprovado")
+        endif
+    endif
+endmain
