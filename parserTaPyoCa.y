@@ -67,17 +67,18 @@ static void emit_c(const char *f, ...) {
     fprintf(out_c, "\n");
 }
 
-/* Converte Tipo (TaPyoCa) para sintaxe C (ex: int[] -> int*, string -> char*) */
+/* Converte Tipo (TaPyoCa) para sintaxe C
+   (ex: int[] -> int*, string -> char*, Aluno -> struct Aluno) */
 static char *tipo_para_c(Tipo t) {
-    const char *base = "int";
+    char base[96];
     switch (t.base) {
-        case TIPO_VOID:   base = "void"; break;
-        case TIPO_INT:    base = "int"; break;
-        case TIPO_REAL:   base = "double"; break;
-        case TIPO_STRING: base = "char*"; break;
-        default:          base = "int"; break;
+        case TIPO_VOID:   strcpy(base, "void"); break;
+        case TIPO_REAL:   strcpy(base, "double"); break;
+        case TIPO_STRING: strcpy(base, "char*"); break;
+        case TIPO_STRUCT: snprintf(base, sizeof(base), "struct %s", t.nome_struct); break;
+        default:          strcpy(base, "int"); break;
     }
-    char buf[64];
+    char buf[128];
     strcpy(buf, base);
     for (int i = 0; i < t.dimensao && i < 10; i++) {
         strcat(buf, "*");
@@ -89,6 +90,7 @@ static char *tipo_para_c(Tipo t) {
 
 static Tipo retorno_esperado;
 static int encontrou_return = 0;
+static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 
 %}
 
@@ -104,10 +106,12 @@ static int encontrou_return = 0;
 %token MAIN LPAREN RPAREN NEWLINE INDENT DEDENT ENDMAIN SUB ENDSUB COMMA
 %token ASSIGN RETURN IF ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL
 %token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV PRINT READ
+%token STRUCT ENDSTRUCT DOT
 
 %token <ival> INT_NUM
 %token <fval> REAL_NUM
 %token <sval> ID
+%token <sval> STRUCT_ID
 %token <sval> STRING_LITERAL
 
 /* Nao-terminais tipados */
@@ -139,9 +143,58 @@ declaracoes_globais
     ;
 
 declaracao
-    : subrotina  {}
-    | main_block {}
+    : subrotina         {}
+    | main_block        {}
+    | declaracao_struct {}
     ;
+
+/* ---------- structs ---------- */
+
+declaracao_struct
+    : STRUCT ID
+        {
+            pr("[struct] %s", $2);
+            struct_atual = inserir_struct($2, yylineno);
+            emit_c("struct %s {", $2);
+            depth++;
+        }
+      NEWLINE corpo_struct ENDSTRUCT NEWLINE
+        {
+            if (struct_atual && struct_atual->num_campos == 0) {
+                erro_semantico(yylineno, "Struct '%s' deve possuir ao menos um campo.", $2);
+            }
+            depth--;
+            emit_c("};\n");
+            pr("[endstruct]");
+            printf("\n");
+            struct_atual = NULL;
+            free($2);
+        }
+    ;
+
+corpo_struct
+    : INDENT campos DEDENT {}
+    | /* vazio */          {}
+    ;
+
+campos
+    : campos campo NEWLINE {}
+    | /* vazio */          {}
+    ;
+
+campo
+    : tipo ID
+        {
+            pr("[campo] %s %s", $1, $2);
+            Tipo t = parse_tipo_string($1);
+            adicionar_campo_struct(struct_atual, $2, t, yylineno);
+            char *t_c = tipo_para_c(t);
+            emit_c("%s %s;", t_c, $2);
+            free(t_c); free($1); free($2);
+        }
+    ;
+
+/* ---------- main e subrotinas ---------- */
 
 main_block
     : MAIN LPAREN RPAREN
@@ -266,6 +319,8 @@ lista_parametros
         }
     ;
 
+/* ---------- comandos ---------- */
+
 comandos
     : comandos comando NEWLINE {}
     | /* vazio */              {}
@@ -303,7 +358,7 @@ comandoprint
             free($3->texto);
             free($3);
         }
-    ;;
+    ;
 
 declaracaovar
     : tipo ID ASSIGN READ LPAREN RPAREN
@@ -311,8 +366,8 @@ declaracaovar
             pr("[decl] %s %s <- read()", $1, $2);
             Tipo t_var = parse_tipo_string($1);
             if (inserir_variavel($2, t_var, yylineno) != NULL) {
-                if (t_var.dimensao > 0) {
-                    erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em um array ('%s').", $2);
+                if (t_var.dimensao > 0 || t_var.base == TIPO_STRUCT) {
+                    erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em '%s'.", $2);
                 } else {
                     char *t_c = tipo_para_c(t_var);
                     if (t_var.base == TIPO_INT) {
@@ -342,6 +397,8 @@ declaracaovar
                     char *t_c = tipo_para_c(t_var);
                     if (t_var.dimensao > 0 && $4.texto[0] == '[') {
                         Tipo t_elem = criar_tipo(t_var.base, t_var.dimensao - 1);
+                        if (t_var.base == TIPO_STRUCT)
+                            strcpy(t_elem.nome_struct, t_var.nome_struct);
                         char *elem_c = tipo_para_c(t_elem);
                         char *init = strdup($4.texto);
                         init[0] = '{';
@@ -374,13 +431,14 @@ atribuicao
         {
             pr("[atrib] %s <- read()", $1.texto);
             if ($1.tipo.base != TIPO_ERRO) {
-                if ($1.tipo.dimensao > 0) {
-                    erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em um array ('%s').", $1.texto);
+                if ($1.tipo.dimensao > 0 || $1.tipo.base == TIPO_STRUCT) {
+                    erro_semantico(yylineno, "Nao e possivel usar 'read()' diretamente em '%s'.", $1.texto);
                 } else if ($1.tipo.base == TIPO_INT) {
                     emit_c("if (scanf(\"%%d\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'int'.\\n\"); exit(1); }", $1.texto);
                 } else if ($1.tipo.base == TIPO_REAL) {
                     emit_c("if (scanf(\"%%lf\", &%s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'real'.\\n\"); exit(1); }", $1.texto);
                 } else if ($1.tipo.base == TIPO_STRING) {
+                    emit_c("%s = malloc(256);", $1.texto);
                     emit_c("if (scanf(\"%%255s\", %s) != 1) { fprintf(stderr, \"Erro em tempo de execucao: esperado 'string'.\\n\"); exit(1); }", $1.texto);
                 }
             }
@@ -545,12 +603,17 @@ lista_argumentos
         }
     ;
 
+/* ---------- tipos ---------- */
+
 tipo
     : INT                      { $$ = strdup("int"); }
     | REAL                     { $$ = strdup("real"); }
     | STRING                   { $$ = strdup("string"); }
+    | STRUCT_ID                { $$ = $1; }
     | tipo LBRACKET RBRACKET   { $$ = fmt("%s[]", $1); free($1); }
     ;
+
+/* ---------- expressoes ---------- */
 
 expressao
     : exprelacional { $$ = $1; }
@@ -634,6 +697,8 @@ l_value
                     erro_semantico(yylineno, "Tentativa de indexar tipo nao-array '%s'.",
                                    tipo_para_string($1.tipo));
                     $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                } else if ($1.tipo.base == TIPO_STRUCT) {
+                    $$.tipo = criar_tipo_struct($1.tipo.nome_struct, $1.tipo.dimensao - 1);
                 } else {
                     $$.tipo = criar_tipo($1.tipo.base, $1.tipo.dimensao - 1);
                 }
@@ -641,6 +706,25 @@ l_value
                 $$.tipo = criar_tipo(TIPO_ERRO, 0);
             }
             free($1.texto); free($3.texto);
+        }
+    | l_value DOT ID
+        {
+            $$.texto = fmt("%s.%s", $1.texto, $3);
+            if ($1.tipo.base == TIPO_ERRO) {
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+            } else if ($1.tipo.base != TIPO_STRUCT || $1.tipo.dimensao != 0) {
+                erro_semantico(yylineno, "Acesso ao campo '%s' em '%s', que nao e uma struct.",
+                               $3, tipo_para_string($1.tipo));
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+            } else {
+                Tipo tc = buscar_campo_struct($1.tipo.nome_struct, $3);
+                if (tc.base == TIPO_ERRO) {
+                    erro_semantico(yylineno, "Struct '%s' nao possui o campo '%s'.",
+                                   $1.tipo.nome_struct, $3);
+                }
+                $$.tipo = tc;
+            }
+            free($1.texto); free($3);
         }
     ;
 
@@ -679,6 +763,8 @@ arrayLiteral
                 }
                 if (erro_elem || elem_tipo.base == TIPO_ERRO) {
                     $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                } else if (elem_tipo.base == TIPO_STRUCT) {
+                    $$.tipo = criar_tipo_struct(elem_tipo.nome_struct, elem_tipo.dimensao + 1);
                 } else {
                     $$.tipo = criar_tipo(elem_tipo.base, elem_tipo.dimensao + 1);
                 }

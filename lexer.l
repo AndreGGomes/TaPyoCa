@@ -83,6 +83,8 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 "return"   { return RETURN; }
 "print"    { return PRINT; }
 "read"     { return READ; }
+"struct"    { return STRUCT; }
+"endstruct" { return ENDSTRUCT; }
 
  /* Tipos de Dados */
 "int"      { return INT; }
@@ -106,6 +108,7 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 "<"        { return LT; }
 ">"        { return GT; }
 "="        { return ASSIGN; }
+"."        { return DOT; }
 
  /* Retornando valores */
 {REAL_PAT} { 
@@ -120,9 +123,10 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
     yylval.sval = strdup(yytext); 
     return STRING_LITERAL; 
 }
-{ID}       { 
-    yylval.sval = strdup(yytext); 
-    return ID; 
+{ID}       {
+    yylval.sval = strdup(yytext);
+    if (buscar_struct(yytext)) return STRUCT_ID;   /* nome de struct ja declarada = tipo */
+    return ID;
 }
 
  /* Caractere Invalido */
