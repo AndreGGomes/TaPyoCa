@@ -25,8 +25,10 @@ typedef struct Simbolo {
     char *nome;
     Tipo tipo;
     int is_func;
+    int is_ref;
     int num_params;
     Tipo *params;          /* Vetor com os tipos dos parâmetros */
+    int *params_ref;
     int nivel_escopo;
     struct Simbolo *prox;
 } Simbolo;
@@ -38,7 +40,9 @@ void sair_escopo(void);
 
 /* Inserção e Busca */
 Simbolo* inserir_variavel(const char *nome, Tipo tipo, int linha);
+Simbolo* inserir_variavel_ref(const char *nome, Tipo tipo, int is_ref, int linha);
 Simbolo* inserir_funcao(const char *nome, Tipo retorno, int num_params, Tipo *params, int linha);
+Simbolo* inserir_funcao_ref(const char *nome, Tipo retorno, int num_params, Tipo *params, int *params_ref, int linha);
 Simbolo* buscar_simbolo(const char *nome);
 
 /* Utilitários de Tipo e Verificações */

@@ -4,6 +4,7 @@
     typedef struct {
         char *nomes[32];
         Tipo tipos[32];
+        int is_ref[32];
         int count;
         char *texto;
         char *c_texto;
@@ -11,8 +12,10 @@
 
     typedef struct {
         Tipo tipos[32];
+        int is_ref[32];
         int count;
         char *texto;
+        char *c_texto;
     } ListaArgs;
 }
 %{
@@ -103,7 +106,7 @@ static int encontrou_return = 0;
 
 %token MAIN LPAREN RPAREN NEWLINE INDENT DEDENT ENDMAIN SUB ENDSUB COMMA
 %token ASSIGN RETURN IF ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL
-%token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV PRINT READ
+%token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV PRINT READ REF
 
 %token <ival> INT_NUM
 %token <fval> REAL_NUM
@@ -176,22 +179,16 @@ subrotina
             free(ret_c);
             depth++;
 
-            Tipo *tipos_params = NULL;
-            if ($5->count > 0) {
-                tipos_params = malloc(sizeof(Tipo) * $5->count);
-                for (int i = 0; i < $5->count; i++) {
-                    tipos_params[i] = $5->tipos[i];
-                }
-            }
-            if (!inserir_funcao($3, ret, $5->count, tipos_params, yylineno)) {
-                free(tipos_params);
-            }
+            /* Registra a funcao no escopo global com os tipos e flags is_ref */
+            inserir_funcao_ref($3, ret, $5->count, $5->tipos, $5->is_ref, yylineno);
 
+            /* Abre o escopo local e insere os parametros marcando quais sao 'ref' */
             entrar_escopo();
             for (int i = 0; i < $5->count; i++) {
-                inserir_variavel($5->nomes[i], $5->tipos[i], yylineno);
+                inserir_variavel_ref($5->nomes[i], $5->tipos[i], $5->is_ref[i], yylineno);
                 free($5->nomes[i]);
             }
+
             retorno_esperado = ret;
             encontrou_return = 0;
 
@@ -229,7 +226,44 @@ parametros_opt
     ;
 
 lista_parametros
-    : lista_parametros COMMA tipo ID
+    : lista_parametros COMMA REF tipo ID
+        {
+            $$ = $1;
+            Tipo t = parse_tipo_string($4);
+            char *t_c = tipo_para_c(t);
+
+            if ($$->count < 32) {
+                int idx = $$->count++;
+                $$->nomes[idx] = $5;
+                $$->tipos[idx] = t;
+                $$->is_ref[idx] = 1; /* Marca como parametro por referencia */
+            } else {
+                erro_semantico(yylineno, "Limite maximo de 32 parametros excedido.");
+                free($5);
+            }
+
+            char *novo = fmt("%s, ref %s %s", $$->texto, $4, $$->nomes[$$->count - 1]);
+            char *novo_c = fmt("%s, %s *%s", $$->c_texto, t_c, $$->nomes[$$->count - 1]);
+            free($$->texto); free($$->c_texto); free($4); free(t_c);
+            $$->texto = novo;
+            $$->c_texto = novo_c;
+        }
+    | REF tipo ID
+        {
+            ListaParams *lp = calloc(1, sizeof(ListaParams));
+            Tipo t = parse_tipo_string($2);
+            char *t_c = tipo_para_c(t);
+
+            lp->nomes[0] = $3;
+            lp->tipos[0] = t;
+            lp->is_ref[0] = 1; /* Marca como parametro por referencia */
+            lp->count = 1;
+            lp->texto = fmt("ref %s %s", $2, $3);
+            lp->c_texto = fmt("%s *%s", t_c, $3);
+            free($2); free(t_c);
+            $$ = lp;
+        }
+    | lista_parametros COMMA tipo ID
         {
             $$ = $1;
             Tipo t = parse_tipo_string($3);
@@ -239,6 +273,7 @@ lista_parametros
                 int idx = $$->count++;
                 $$->nomes[idx] = $4;
                 $$->tipos[idx] = t;
+                $$->is_ref[idx] = 0; /* Parametro normal (por valor) */
             } else {
                 erro_semantico(yylineno, "Limite maximo de 32 parametros excedido.");
                 free($4);
@@ -258,6 +293,7 @@ lista_parametros
 
             lp->nomes[0] = $2;
             lp->tipos[0] = t;
+            lp->is_ref[0] = 0; /* Parametro normal (por valor) */
             lp->count = 1;
             lp->texto = fmt("%s %s", $1, $2);
             lp->c_texto = fmt("%s %s", t_c, $2);
@@ -457,12 +493,16 @@ retorno
 chamadafuncao
     : ID LPAREN argumentos_opt RPAREN
         {
-            $$.texto = fmt("%s(%s)", $1, $3->texto);
+            /* Emite a chamada usando c_texto (que contem '&(...)' nos argumentos ref) */
+            $$.texto = fmt("%s(%s)", $1, $3->c_texto);
 
             /* 1. Built-in: comprimento(array) -> int */
             if (strcmp($1, "comprimento") == 0) {
                 if ($3->count != 1) {
                     erro_semantico(yylineno, "'comprimento' espera 1 argumento, recebeu %d.", $3->count);
+                    $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                } else if ($3->is_ref[0]) {
+                    erro_semantico(yylineno, "'comprimento' nao aceita argumento por referencia ('ref').");
                     $$.tipo = criar_tipo(TIPO_ERRO, 0);
                 } else if ($3->tipos[0].dimensao <= 0 && $3->tipos[0].base != TIPO_ERRO) {
                     erro_semantico(yylineno, "'comprimento' espera um array, recebeu '%s'.",
@@ -476,9 +516,9 @@ chamadafuncao
             else if (strcmp($1, "swap") == 0) {
                 if ($3->count != 2) {
                     erro_semantico(yylineno, "'swap' espera 2 argumentos, recebeu %d.", $3->count);
-                } else if (!tipos_compativeis($3->tipos[0], $3->tipos[1]) ||
-                           !tipos_compativeis($3->tipos[1], $3->tipos[0])) {
-                    erro_semantico(yylineno, "'swap' requer argumentos do mesmo tipo, recebeu '%s' e '%s'.",
+                } else if ($3->tipos[0].base != TIPO_ERRO && $3->tipos[1].base != TIPO_ERRO &&
+                           ($3->tipos[0].base != $3->tipos[1].base || $3->tipos[0].dimensao != $3->tipos[1].dimensao)) {
+                    erro_semantico(yylineno, "'swap' requer argumentos exatamente do mesmo tipo, recebeu '%s' e '%s'.",
                                    tipo_para_string($3->tipos[0]), tipo_para_string($3->tipos[1]));
                 }
                 $$.tipo = criar_tipo(TIPO_VOID, 0);
@@ -498,7 +538,23 @@ chamadafuncao
                                        $1, s->num_params, $3->count);
                     } else {
                         for (int i = 0; i < s->num_params; i++) {
-                            if (!tipos_compativeis(s->params[i], $3->tipos[i])) {
+                            int param_ref = s->params_ref ? s->params_ref[i] : 0;
+                            int arg_ref   = $3->is_ref[i];
+
+                            if (param_ref && !arg_ref) {
+                                erro_semantico(yylineno, "Argumento %d de '%s' deve ser passado por referencia ('ref').",
+                                               i + 1, $1);
+                            } else if (!param_ref && arg_ref) {
+                                erro_semantico(yylineno, "Argumento %d de '%s' nao aceita passagem por referencia ('ref').",
+                                               i + 1, $1);
+                            } else if (param_ref) {
+                                /* Ponteiros em C exigem tipo identico (nao permite passar int* para double*) */
+                                if ($3->tipos[i].base != TIPO_ERRO &&
+                                    (s->params[i].base != $3->tipos[i].base || s->params[i].dimensao != $3->tipos[i].dimensao)) {
+                                    erro_semantico(yylineno, "Argumento %d por referencia de '%s' exige tipo exato '%s', recebido '%s'.",
+                                                   i + 1, $1, tipo_para_string(s->params[i]), tipo_para_string($3->tipos[i]));
+                                }
+                            } else if (!tipos_compativeis(s->params[i], $3->tipos[i])) {
                                 erro_semantico(yylineno, "Argumento %d de '%s' invalido: esperado '%s', recebido '%s'.",
                                                i + 1, $1, tipo_para_string(s->params[i]), tipo_para_string($3->tipos[i]));
                             }
@@ -507,7 +563,7 @@ chamadafuncao
                     $$.tipo = s->tipo;
                 }
             }
-            free($1); free($3->texto); free($3);
+            free($1); free($3->texto); free($3->c_texto); free($3);
         }
     ;
 
@@ -523,24 +579,51 @@ argumentos_opt
     ;
 
 lista_argumentos
-    : lista_argumentos COMMA expressao
+    : lista_argumentos COMMA REF l_value
         {
+            int idx = $1->count;
+            $1->tipos[idx] = $4.tipo;
+            $1->is_ref[idx] = 1;
+            $1->count++;
+            char *novo_t = fmt("%s, ref %s", $1->texto, $4.texto);
+            char *novo_c = fmt("%s, &(%s)", $1->c_texto, $4.texto);
+            free($1->texto); free($1->c_texto); free($4.texto);
+            $1->texto = novo_t;
+            $1->c_texto = novo_c;
             $$ = $1;
-            if ($$->count < 32) {
-                $$->tipos[$$->count++] = $3.tipo;
-            } else {
-                erro_semantico(yylineno, "Limite maximo de 32 argumentos/elementos excedido.");
-            }
-            char *novo = fmt("%s, %s", $$->texto, $3.texto);
-            free($$->texto); free($3.texto);
-            $$->texto = novo;
+        }
+    | REF l_value
+        {
+            ListaArgs *la = calloc(1, sizeof(ListaArgs));
+            la->tipos[0] = $2.tipo;
+            la->is_ref[0] = 1;
+            la->count = 1;
+            la->texto = fmt("ref %s", $2.texto);
+            la->c_texto = fmt("&(%s)", $2.texto);
+            free($2.texto);
+            $$ = la;
+        }
+    | lista_argumentos COMMA expressao
+        {
+            int idx = $1->count;
+            $1->tipos[idx] = $3.tipo;
+            $1->is_ref[idx] = 0;
+            $1->count++;
+            char *novo_t = fmt("%s, %s", $1->texto, $3.texto);
+            char *novo_c = fmt("%s, %s", $1->c_texto, $3.texto);
+            free($1->texto); free($1->c_texto); free($3.texto);
+            $1->texto = novo_t;
+            $1->c_texto = novo_c;
+            $$ = $1;
         }
     | expressao
         {
             ListaArgs *la = calloc(1, sizeof(ListaArgs));
             la->tipos[0] = $1.tipo;
+            la->is_ref[0] = 0;
             la->count = 1;
-            la->texto = $1.texto;
+            la->texto = strdup($1.texto);
+            la->c_texto = $1.texto;
             $$ = la;
         }
     ;
@@ -611,15 +694,22 @@ l_value
     : ID
         {
             Simbolo *s = buscar_simbolo($1);
-            $$.texto = $1;
             if (!s) {
                 erro_semantico(yylineno, "Variavel '%s' nao declarada.", $1);
+                $$.texto = $1;
                 $$.tipo = criar_tipo(TIPO_ERRO, 0);
             } else if (s->is_func) {
                 erro_semantico(yylineno, "'%s' e uma subrotina e nao pode ser usada como variavel.", $1);
+                $$.texto = $1;
                 $$.tipo = criar_tipo(TIPO_ERRO, 0);
             } else {
                 $$.tipo = s->tipo;
+                if (s->is_ref) {
+                    $$.texto = fmt("(*%s)", $1);
+                    free($1);
+                } else {
+                    $$.texto = $1;
+                }
             }
         }
     | l_value LBRACKET expressao RBRACKET

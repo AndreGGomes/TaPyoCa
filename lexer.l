@@ -83,6 +83,7 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 "return"   { return RETURN; }
 "print"    { return PRINT; }
 "read"     { return READ; }
+"ref"      { return REF; }
 
  /* Tipos de Dados */
 "int"      { return INT; }

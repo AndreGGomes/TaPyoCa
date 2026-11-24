@@ -39,6 +39,7 @@ void sair_escopo(void) {
         tabela_simbolos = tabela_simbolos->prox;
         free(temp->nome);
         if (temp->params) free(temp->params);
+        if (temp->params_ref) free(temp->params_ref);
         free(temp);
     }
     escopo_atual--;
@@ -59,17 +60,52 @@ Simbolo* buscar_simbolo(const char *nome) {
     return NULL;
 }
 
-Simbolo* inserir_variavel(const char *nome, Tipo tipo, int linha) {
+Simbolo* inserir_variavel_ref(const char *nome, Tipo tipo, int is_ref, int linha) {
     if (buscar_no_escopo_atual(nome) != NULL) {
-        erro_semantico(linha, "Identificador '%s' ja declarado neste escopo.", nome);
+        erro_semantico(linha, "Variavel '%s' ja declarada neste escopo.", nome);
         return NULL;
     }
-    Simbolo *s = malloc(sizeof(Simbolo));
+    Simbolo *s = calloc(1, sizeof(Simbolo));
     s->nome = strdup(nome);
     s->tipo = tipo;
     s->is_func = 0;
+    s->is_ref = is_ref;
     s->num_params = 0;
     s->params = NULL;
+    s->params_ref = NULL;
+    s->nivel_escopo = escopo_atual;
+    s->prox = tabela_simbolos;
+    tabela_simbolos = s;
+    return s;
+}
+
+Simbolo* inserir_variavel(const char *nome, Tipo tipo, int linha) {
+    return inserir_variavel_ref(nome, tipo, 0, linha);
+}
+
+Simbolo* inserir_funcao_ref(const char *nome, Tipo retorno, int num_params, Tipo *params, int *params_ref, int linha) {
+    if (buscar_no_escopo_atual(nome) != NULL) {
+        erro_semantico(linha, "Subrotina '%s' ja foi declarada.", nome);
+        return NULL;
+    }
+    Simbolo *s = calloc(1, sizeof(Simbolo));
+    s->nome = strdup(nome);
+    s->tipo = retorno;
+    s->is_func = 1;
+    s->is_ref = 0;
+    s->num_params = num_params;
+    s->params = NULL;
+    s->params_ref = NULL;
+
+    if (num_params > 0) {
+        s->params = (Tipo*) malloc(sizeof(Tipo) * num_params);
+        memcpy(s->params, params, sizeof(Tipo) * num_params);
+        s->params_ref = (int*) calloc(num_params, sizeof(int));
+        if (params_ref != NULL) {
+            memcpy(s->params_ref, params_ref, sizeof(int) * num_params);
+        }
+    } /* <-- Chave que estava faltando */
+
     s->nivel_escopo = escopo_atual;
     s->prox = tabela_simbolos;
     tabela_simbolos = s;
@@ -77,20 +113,7 @@ Simbolo* inserir_variavel(const char *nome, Tipo tipo, int linha) {
 }
 
 Simbolo* inserir_funcao(const char *nome, Tipo retorno, int num_params, Tipo *params, int linha) {
-    if (buscar_no_escopo_atual(nome) != NULL) {
-        erro_semantico(linha, "Subrotina '%s' ja declarada.", nome);
-        return NULL;
-    }
-    Simbolo *s = malloc(sizeof(Simbolo));
-    s->nome = strdup(nome);
-    s->tipo = retorno;
-    s->is_func = 1;
-    s->num_params = num_params;
-    s->params = params;
-    s->nivel_escopo = escopo_atual;
-    s->prox = tabela_simbolos;
-    tabela_simbolos = s;
-    return s;
+    return inserir_funcao_ref(nome, retorno, num_params, params, NULL, linha);
 }
 
 Tipo criar_tipo(TipoBase base, int dimensao) {
