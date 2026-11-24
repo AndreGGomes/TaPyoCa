@@ -3,6 +3,7 @@ struct Pessoa
     int idade
 endstruct
 
+sub 
 main()
     Pessoa a
     print("digite seu nome:")
@@ -10,6 +11,5 @@ main()
     print("digite sua idade:")
     a.idade = read()
 
-    print(a.nome)
-    print(a.idade)
+    print("Oi", a.nome, "você tem", a.idade, "anos!")
 endmain

@@ -385,15 +385,53 @@ comandoprint
             pr("[print] print %s", $3->texto);
             if ($3->count == 0) {
                 emit_c("printf(\"\\n\");");
-            } else if ($3->is_ref[0]) {
-                erro_semantico(yylineno, "'print' nao aceita argumento por referencia ('ref').");
             } else {
-                /* Verifica o tipo do primeiro argumento para escolher o especificador C */
-                const char *spec = "%d";
-                if ($3->tipos[0].base == TIPO_REAL)        spec = "%g";
-                else if ($3->tipos[0].base == TIPO_STRING) spec = "%s";
+                char formato[512] = "";
+                int tem_erro = 0;
 
-                emit_c("printf(\"%s\\n\", %s);", spec, $3->c_texto);
+                for (int i = 0; i < $3->count; i++) {
+                    Tipo t = $3->tipos[i];
+
+                    if ($3->is_ref[i]) {
+                        erro_semantico(yylineno, "'print' nao aceita argumento por referencia ('ref') no argumento %d.", i + 1);
+                        tem_erro = 1;
+                        break;
+                    }
+                    if (t.base == TIPO_ERRO) {
+                        tem_erro = 1;
+                        break;
+                    }
+                    if (t.dimensao > 0) {
+                        erro_semantico(yylineno, "Nao e possivel imprimir um array inteiro diretamente no argumento %d de 'print'.", i + 1);
+                        tem_erro = 1;
+                        break;
+                    }
+                    if (t.base == TIPO_VOID) {
+                        erro_semantico(yylineno, "Argumento %d de 'print' nao possui valor (tipo 'void').", i + 1);
+                        tem_erro = 1;
+                        break;
+                    }
+                    if (t.base == TIPO_STRUCT) {
+                        erro_semantico(yylineno, "Nao e possivel imprimir uma struct ('%s') diretamente no argumento %d de 'print'.",
+                                       t.nome_struct, i + 1);
+                        tem_erro = 1;
+                        break;
+                    }
+
+                    /* Coloca um espaco entre os argumentos (estilo Python).
+                       Se quiser colado, basta remover este bloco if. */
+                    if (i > 0) {
+                        strcat(formato, " ");
+                    }
+
+                    if (t.base == TIPO_REAL)        strcat(formato, "%g");
+                    else if (t.base == TIPO_STRING) strcat(formato, "%s");
+                    else                            strcat(formato, "%d");
+                }
+
+                if (!tem_erro) {
+                    emit_c("printf(\"%s\\n\", %s);", formato, $3->c_texto);
+                }
             }
             free($3->texto);
             free($3->c_texto);
