@@ -206,6 +206,7 @@ Tipo parse_tipo_string(const char *str) {
     if (strcmp(base_nome, "int") == 0)    return criar_tipo(TIPO_INT, dim);
     if (strcmp(base_nome, "real") == 0)   return criar_tipo(TIPO_REAL, dim);
     if (strcmp(base_nome, "string") == 0) return criar_tipo(TIPO_STRING, dim);
+    if (strcmp(base_nome, "bool") == 0)   return criar_tipo(TIPO_BOOL, dim);
 
     return criar_tipo_struct(base_nome, dim);
 }
@@ -222,6 +223,7 @@ const char* tipo_para_string(Tipo t) {
         case TIPO_INT:    base_str = "int"; break;
         case TIPO_REAL:   base_str = "real"; break;
         case TIPO_STRING: base_str = "string"; break;
+        case TIPO_BOOL:   base_str = "bool"; break;
         case TIPO_STRUCT: base_str = t.nome_struct; break;
         default: break;
     }
@@ -282,6 +284,23 @@ Tipo verificar_binario_aritmetico(Tipo t1, Tipo t2, const char *op, int linha) {
     return criar_tipo(TIPO_ERRO, 0);
 }
 
+Tipo verificar_unario_aritmetico(Tipo t, const char *op, int linha) {
+    if (t.base == TIPO_ERRO) return criar_tipo(TIPO_ERRO, 0);
+
+    if (t.dimensao > 0) {
+        erro_semantico(linha, "Operador unario '%s' nao pode ser aplicado a arrays.", op);
+        return criar_tipo(TIPO_ERRO, 0);
+    }
+
+    if (t.base == TIPO_INT || t.base == TIPO_REAL) {
+        return t;
+    }
+
+    erro_semantico(linha, "Operador unario '%s' exige operando numerico ('int' ou 'real'), recebeu '%s'.",
+                   op, tipo_para_string(t));
+    return criar_tipo(TIPO_ERRO, 0);
+}
+
 Tipo verificar_relacional(Tipo t1, Tipo t2, const char *op, int linha) {
     if (t1.base == TIPO_ERRO || t2.base == TIPO_ERRO) return criar_tipo(TIPO_ERRO, 0);
 
@@ -292,15 +311,45 @@ Tipo verificar_relacional(Tipo t1, Tipo t2, const char *op, int linha) {
 
     if ((t1.base == TIPO_INT || t1.base == TIPO_REAL) &&
         (t2.base == TIPO_INT || t2.base == TIPO_REAL)) {
-        return criar_tipo(TIPO_INT, 0); /* Booleano representado como int */
+        return criar_tipo(TIPO_BOOL, 0);
     }
 
     if (t1.base == TIPO_STRING && t2.base == TIPO_STRING &&
        (strcmp(op, "==") == 0 || strcmp(op, "!=") == 0)) {
-        return criar_tipo(TIPO_INT, 0);
+        return criar_tipo(TIPO_BOOL, 0);
+    }
+
+    if (t1.base == TIPO_BOOL && t2.base == TIPO_BOOL &&
+       (strcmp(op, "==") == 0 || strcmp(op, "!=") == 0)) {
+        return criar_tipo(TIPO_BOOL, 0);
     }
 
     erro_semantico(linha, "Nao e possivel comparar '%s' com '%s' usando '%s'.",
                    tipo_para_string(t1), tipo_para_string(t2), op);
     return criar_tipo(TIPO_ERRO, 0);
+}
+
+Tipo verificar_binario_logico(Tipo t1, Tipo t2, const char *op, int linha) {
+    if (t1.base == TIPO_ERRO || t2.base == TIPO_ERRO) return criar_tipo(TIPO_ERRO, 0);
+
+    if (t1.base != TIPO_BOOL || t1.dimensao != 0 ||
+        t2.base != TIPO_BOOL || t2.dimensao != 0) {
+        erro_semantico(linha, "Operador '%s' exige operandos do tipo 'bool', recebeu '%s' e '%s'.",
+                       op, tipo_para_string(t1), tipo_para_string(t2));
+        return criar_tipo(TIPO_ERRO, 0);
+    }
+
+    return criar_tipo(TIPO_BOOL, 0);
+}
+
+Tipo verificar_unario_logico(Tipo t, const char *op, int linha) {
+    if (t.base == TIPO_ERRO) return criar_tipo(TIPO_ERRO, 0);
+
+    if (t.base != TIPO_BOOL || t.dimensao != 0) {
+        erro_semantico(linha, "Operador '%s' exige operando do tipo 'bool', recebeu '%s'.",
+                       op, tipo_para_string(t));
+        return criar_tipo(TIPO_ERRO, 0);
+    }
+
+    return criar_tipo(TIPO_BOOL, 0);
 }

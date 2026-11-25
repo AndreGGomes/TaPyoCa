@@ -1,0 +1,15 @@
+main()
+    int a = 10
+    print(a)
+
+    if(true)
+        int a = 5
+        print(a)
+        if(true)
+            print(a)
+            int a = 3
+            print(a)
+        endif
+    endif
+    print(a)
+endmain
