@@ -111,6 +111,9 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 "!="       { return NEQ; }
 "<"        { return LT; }
 ">"        { return GT; }
+"&&"       { return AND; }
+"||"       { return OR; }
+"!"        { return NOT; }
 "="        { return ASSIGN; }
 "."        { return DOT; }
 

@@ -177,7 +177,7 @@ static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 
 %token MAIN LPAREN RPAREN NEWLINE INDENT DEDENT ENDMAIN SUB ENDSUB COMMA
 %token ASSIGN RETURN IF ELSE ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL
-%token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV POW PRINT READ REF
+%token LT LEQ GT GEQ EQ NEQ AND OR NOT PLUS MINUS MUL DIV POW PRINT READ REF
 %token STRUCT ENDSTRUCT DOT
 %token BREAK
 
@@ -191,7 +191,7 @@ static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 %type <sval> tipo tipo_opt op_relacional
 %type <plist> parametros_opt lista_parametros
 %type <alist> argumentos_opt lista_argumentos array_elements_opt
-%type <expr> expressao exprelacional exparitimetica termo
+%type <expr> expressao explogica exp_and exp_not exprelacional exparitimetica termo
 %type <expr> l_value fator potencia arrayLiteral chamadafuncao
 
 %start programa
@@ -953,7 +953,63 @@ tipo
 /* ---------- expressoes ---------- */
 
 expressao
-    : exprelacional { $$ = $1; }
+    : explogica { $$ = $1; }
+    ;
+
+explogica
+    : explogica OR exp_and
+        {
+            $$.texto = fmt("%s || %s", $1.texto, $3.texto);
+            if ($1.tipo.base == TIPO_ERRO || $3.tipo.base == TIPO_ERRO) {
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+            } else if ($1.tipo.base != TIPO_INT || $1.tipo.dimensao != 0 ||
+                       $3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0) {
+                erro_semantico(yylineno, "Operador '||' exige operandos logicos/inteiros, recebeu '%s' e '%s'.",
+                               tipo_para_string($1.tipo), tipo_para_string($3.tipo));
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+            } else {
+                $$.tipo = criar_tipo(TIPO_INT, 0);
+            }
+            free($1.texto); free($3.texto);
+        }
+    | exp_and { $$ = $1; }
+    ;
+
+exp_and
+    : exp_and AND exp_not
+        {
+            $$.texto = fmt("%s && %s", $1.texto, $3.texto);
+            if ($1.tipo.base == TIPO_ERRO || $3.tipo.base == TIPO_ERRO) {
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+            } else if ($1.tipo.base != TIPO_INT || $1.tipo.dimensao != 0 ||
+                       $3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0) {
+                erro_semantico(yylineno, "Operador '&&' exige operandos logicos/inteiros, recebeu '%s' e '%s'.",
+                               tipo_para_string($1.tipo), tipo_para_string($3.tipo));
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+            } else {
+                $$.tipo = criar_tipo(TIPO_INT, 0);
+            }
+            free($1.texto); free($3.texto);
+        }
+    | exp_not { $$ = $1; }
+    ;
+
+exp_not
+    : NOT exp_not
+        {
+            $$.texto = fmt("!(%s)", $2.texto);
+            if ($2.tipo.base == TIPO_ERRO) {
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+            } else if ($2.tipo.base != TIPO_INT || $2.tipo.dimensao != 0) {
+                erro_semantico(yylineno, "Operador '!' exige operando logico/inteiro, recebeu '%s'.",
+                               tipo_para_string($2.tipo));
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+            } else {
+                $$.tipo = criar_tipo(TIPO_INT, 0);
+            }
+            free($2.texto);
+        }
+    | exprelacional { $$ = $1; }
     ;
 
 exprelacional
