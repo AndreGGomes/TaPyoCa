@@ -78,7 +78,9 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 "endsub"    { return ENDSUB; }
 "while"     { return WHILE; }
 "endwhile"  { return ENDWHILE; }
+"break"     { return BREAK; }
 "if"        { return IF; }
+"else"      { return ELSE; }
 "endif"     { return ENDIF; }
 "return"    { return RETURN; }
 "print"     { return PRINT; }
@@ -100,6 +102,7 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 ","        { return COMMA; }
 "+"        { return PLUS; }
 "-"        { return MINUS; }
+"**"       { return POW; }
 "*"        { return MUL; }
 "/"        { return DIV; }
 "<="       { return LEQ; }
@@ -108,6 +111,9 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 "!="       { return NEQ; }
 "<"        { return LT; }
 ">"        { return GT; }
+"&&"       { return AND; }
+"||"       { return OR; }
+"!"        { return NOT; }
 "="        { return ASSIGN; }
 "."        { return DOT; }
 

@@ -1,0 +1,31 @@
+main()
+    real x
+    int intervalo1 = 0
+    int intervalo2 = 0
+    int intervalo3 = 0
+    int intervalo4 = 0
+    while(1)
+        x = read()
+        if (x < 0)
+            break
+        else
+            if (x >= 0 && x <= 25)
+                intervalo1 = intervalo1 + 1
+            endif
+            if (x >= 26 && x <= 50)
+                intervalo2 = intervalo2 + 1
+            endif
+            if (x >= 51 && x <= 75)
+                intervalo3 = intervalo3 + 1
+            endif
+            if (x >= 76 && x <= 100)
+                intervalo4 = intervalo4 + 1
+            endif
+        endif
+    endwhile
+
+    print("numeros no intervalo [0, 25]:", intervalo1)
+    print("numeros no intervalo [26, 50]:", intervalo2)
+    print("numeros no intervalo [51, 75]:", intervalo3)
+    print("numeros no intervalo [76, 100]:", intervalo4)
+endmain

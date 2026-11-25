@@ -1,0 +1,16 @@
+main()
+    int a
+    while(1 == 1)
+        a = read()
+        if(a>0)
+            print("o numero digitado é positivo")
+        else
+            if(a < 0)
+                print("o numero digitado é negativo")
+            else
+                print("o numero digitado é zero, parando o programa")
+                break
+            endif
+        endif
+    endwhile
+endmain
