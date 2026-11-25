@@ -1,0 +1,12 @@
+main()
+
+    if(true)
+        int a = 10
+        print(a)
+    endif
+
+    # deve dar erro
+    if(true)
+        print(a)
+    endif
+endmain

@@ -17,6 +17,7 @@
     typedef struct {
         Tipo tipos[32];
         int is_ref[32];
+        char *c_itens[32];
         int count;
         char *texto;
         char *c_texto;
@@ -140,13 +141,14 @@ static void emit_c(const char *f, ...) {
 }
 
 /* Converte Tipo (TaPyoCa) para sintaxe C
-   (ex: int[] -> int*, string -> char*, Aluno -> struct Aluno) */
+   (ex: int[] -> int*, string -> char*, bool -> bool, Aluno -> struct Aluno) */
 static char *tipo_para_c(Tipo t) {
     char base[96];
     switch (t.base) {
         case TIPO_VOID:   strcpy(base, "void"); break;
         case TIPO_REAL:   strcpy(base, "double"); break;
         case TIPO_STRING: strcpy(base, "char*"); break;
+        case TIPO_BOOL:   strcpy(base, "bool"); break;
         case TIPO_STRUCT: snprintf(base, sizeof(base), "struct %s", t.nome_struct); break;
         default:          strcpy(base, "int"); break;
     }
@@ -166,6 +168,18 @@ static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 
 %}
 
+%code {
+static void free_lista_args(ListaArgs *la) {
+    if (!la) return;
+    for (int i = 0; i < la->count; i++) {
+        free(la->c_itens[i]);
+    }
+    free(la->texto);
+    free(la->c_texto);
+    free(la);
+}
+}
+
 %union {
     int ival;
     double fval;
@@ -176,7 +190,8 @@ static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 }
 
 %token MAIN LPAREN RPAREN NEWLINE INDENT DEDENT ENDMAIN SUB ENDSUB COMMA
-%token ASSIGN RETURN IF ELSE ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL
+%token ASSIGN RETURN IF ELSE ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL BOOL
+%token TRUE FALSE
 %token LT LEQ GT GEQ EQ NEQ AND OR NOT PLUS MINUS MUL DIV POW PRINT READ REF
 %token STRUCT ENDSTRUCT DOT
 %token BREAK
@@ -191,7 +206,7 @@ static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 %type <sval> tipo tipo_opt op_relacional
 %type <plist> parametros_opt lista_parametros
 %type <alist> argumentos_opt lista_argumentos array_elements_opt
-%type <expr> expressao explogica exp_and exp_not exprelacional exparitimetica termo
+%type <expr> expressao explogica exp_and exp_not exprelacional exparitimetica termo unario
 %type <expr> l_value fator potencia arrayLiteral chamadafuncao
 
 %start programa
@@ -458,6 +473,7 @@ comandoprint
                 emit_c("printf(\"\\n\");");
             } else {
                 char formato[512] = "";
+                char args_c[2048] = "";
                 int tem_erro = 0;
 
                 for (int i = 0; i < $3->count; i++) {
@@ -489,24 +505,33 @@ comandoprint
                         break;
                     }
 
-                    /* Coloca um espaco entre os argumentos (estilo Python).
-                       Se quiser colado, basta remover este bloco if. */
                     if (i > 0) {
                         strcat(formato, " ");
+                        strcat(args_c, ", ");
                     }
 
-                    if (t.base == TIPO_REAL)        strcat(formato, "%g");
-                    else if (t.base == TIPO_STRING) strcat(formato, "%s");
-                    else                            strcat(formato, "%d");
+                    if (t.base == TIPO_REAL) {
+                        strcat(formato, "%g");
+                        strcat(args_c, $3->c_itens[i]);
+                    } else if (t.base == TIPO_STRING) {
+                        strcat(formato, "%s");
+                        strcat(args_c, $3->c_itens[i]);
+                    } else if (t.base == TIPO_BOOL) {
+                        strcat(formato, "%s");
+                        char *b_expr = fmt("(%s ? \"true\" : \"false\")", $3->c_itens[i]);
+                        strcat(args_c, b_expr);
+                        free(b_expr);
+                    } else {
+                        strcat(formato, "%d");
+                        strcat(args_c, $3->c_itens[i]);
+                    }
                 }
 
                 if (!tem_erro) {
-                    emit_c("printf(\"%s\\n\", %s);", formato, $3->c_texto);
+                    emit_c("printf(\"%s\\n\", %s);", formato, args_c);
                 }
             }
-            free($3->texto);
-            free($3->c_texto);
-            free($3);
+            free_lista_args($3);
         }
     ;
 
@@ -537,6 +562,15 @@ declaracaovar
                         emit_c("char *%s = malloc(256);", $2);
                         emit_c("if( scanf(\"%%255s\", %s) == 1 ) goto L%d;", $2, l_ok);
                         emit_c("fprintf(stderr, \"Erro em tempo de execucao: esperado 'string'.\\n\");");
+                        emit_c("exit(1);");
+                        emit_c("L%d:;", l_ok);
+                    } else if (t_var.base == TIPO_BOOL) {
+                        emit_c("%s %s;", t_c, $2);
+                        emit_c("{ char _b[16]; if (scanf(\"%%15s\", _b) == 1) {");
+                        emit_c("    if (strcmp(_b, \"true\") == 0 || strcmp(_b, \"1\") == 0) { %s = true; goto L%d; }", $2, l_ok);
+                        emit_c("    if (strcmp(_b, \"false\") == 0 || strcmp(_b, \"0\") == 0) { %s = false; goto L%d; }", $2, l_ok);
+                        emit_c("} }");
+                        emit_c("fprintf(stderr, \"Erro em tempo de execucao: esperado 'bool'.\\n\");");
                         emit_c("exit(1);");
                         emit_c("L%d:;", l_ok);
                     }
@@ -612,6 +646,15 @@ atribuicao
                     emit_c("fprintf(stderr, \"Erro em tempo de execucao: esperado 'string'.\\n\");");
                     emit_c("exit(1);");
                     emit_c("L%d:;", l_ok);
+                } else if ($1.tipo.base == TIPO_BOOL) {
+                    int l_ok = novo_label();
+                    emit_c("{ char _b[16]; if (scanf(\"%%15s\", _b) == 1) {");
+                    emit_c("    if (strcmp(_b, \"true\") == 0 || strcmp(_b, \"1\") == 0) { %s = true; goto L%d; }", $1.texto, l_ok);
+                    emit_c("    if (strcmp(_b, \"false\") == 0 || strcmp(_b, \"0\") == 0) { %s = false; goto L%d; }", $1.texto, l_ok);
+                    emit_c("} }");
+                    emit_c("fprintf(stderr, \"Erro em tempo de execucao: esperado 'bool'.\\n\");");
+                    emit_c("exit(1);");
+                    emit_c("L%d:;", l_ok);
                 }
             }
             free($1.texto);
@@ -639,9 +682,9 @@ comandowhile
 
             /* Valida a condicao do while */
             if ($3.tipo.base != TIPO_ERRO &&
-                ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
+                ($3.tipo.base != TIPO_BOOL || $3.tipo.dimensao != 0)) {
                 erro_semantico(yylineno,
-                    "Condicao do 'while' deve ser logica/inteira, recebeu '%s'.",
+                    "Condicao do 'while' deve ser booleana ('bool'), recebeu '%s'.",
                     tipo_para_string($3.tipo));
             }
 
@@ -697,9 +740,9 @@ comandoif
 
             /* Valida a condicao */
             if ($3.tipo.base != TIPO_ERRO &&
-                ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
+                ($3.tipo.base != TIPO_BOOL || $3.tipo.dimensao != 0)) {
                 erro_semantico(yylineno,
-                    "Condicao do 'if' deve ser logica/inteira, recebeu '%s'.",
+                    "Condicao do 'if' deve ser booleana ('bool'), recebeu '%s'.",
                     tipo_para_string($3.tipo));
             }
 
@@ -790,6 +833,8 @@ retorno
             } else if (!tipos_compativeis(retorno_esperado, $2.tipo)) {
                 erro_semantico(yylineno, "Tipo de retorno incompativel: esperado '%s', obtido '%s'.",
                                tipo_para_string(retorno_esperado), tipo_para_string($2.tipo));
+            } else {
+                emit_c("return %s;", $2.texto);
             }
             free($2.texto);
         }
@@ -866,7 +911,8 @@ chamadafuncao
                     $$.tipo = s->tipo;
                 }
             }
-            free($1); free($3->texto); free($3->c_texto); free($3);
+            free($1);
+            free_lista_args($3);
         }
     ;
 
@@ -889,6 +935,7 @@ lista_argumentos
                 int idx = $1->count++;
                 $1->tipos[idx] = $4.tipo;
                 $1->is_ref[idx] = 1;
+                $1->c_itens[idx] = fmt("&(%s)", $4.texto);
                 char *novo_t = fmt("%s, ref %s", $1->texto, $4.texto);
                 char *novo_c = fmt("%s, &(%s)", $1->c_texto, $4.texto);
                 free($1->texto); free($1->c_texto);
@@ -905,6 +952,7 @@ lista_argumentos
             ListaArgs *la = calloc(1, sizeof(ListaArgs));
             la->tipos[0] = $2.tipo;
             la->is_ref[0] = 1;
+            la->c_itens[0] = fmt("&(%s)", $2.texto);
             la->count = 1;
             la->texto = fmt("ref %s", $2.texto);
             la->c_texto = fmt("&(%s)", $2.texto);
@@ -917,6 +965,7 @@ lista_argumentos
                 int idx = $1->count++;
                 $1->tipos[idx] = $3.tipo;
                 $1->is_ref[idx] = 0;
+                $1->c_itens[idx] = strdup($3.texto);
                 char *novo_t = fmt("%s, %s", $1->texto, $3.texto);
                 char *novo_c = fmt("%s, %s", $1->c_texto, $3.texto);
                 free($1->texto); free($1->c_texto);
@@ -933,6 +982,7 @@ lista_argumentos
             ListaArgs *la = calloc(1, sizeof(ListaArgs));
             la->tipos[0] = $1.tipo;
             la->is_ref[0] = 0;
+            la->c_itens[0] = strdup($1.texto);
             la->count = 1;
             la->texto = strdup($1.texto);
             la->c_texto = $1.texto;
@@ -946,6 +996,7 @@ tipo
     : INT                      { $$ = strdup("int"); }
     | REAL                     { $$ = strdup("real"); }
     | STRING                   { $$ = strdup("string"); }
+    | BOOL                     { $$ = strdup("bool"); }
     | STRUCT_ID                { $$ = $1; }
     | tipo LBRACKET RBRACKET   { $$ = fmt("%s[]", $1); free($1); }
     ;
@@ -960,16 +1011,7 @@ explogica
     : explogica OR exp_and
         {
             $$.texto = fmt("%s || %s", $1.texto, $3.texto);
-            if ($1.tipo.base == TIPO_ERRO || $3.tipo.base == TIPO_ERRO) {
-                $$.tipo = criar_tipo(TIPO_ERRO, 0);
-            } else if ($1.tipo.base != TIPO_INT || $1.tipo.dimensao != 0 ||
-                       $3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0) {
-                erro_semantico(yylineno, "Operador '||' exige operandos logicos/inteiros, recebeu '%s' e '%s'.",
-                               tipo_para_string($1.tipo), tipo_para_string($3.tipo));
-                $$.tipo = criar_tipo(TIPO_ERRO, 0);
-            } else {
-                $$.tipo = criar_tipo(TIPO_INT, 0);
-            }
+            $$.tipo = verificar_binario_logico($1.tipo, $3.tipo, "||", yylineno);
             free($1.texto); free($3.texto);
         }
     | exp_and { $$ = $1; }
@@ -979,16 +1021,7 @@ exp_and
     : exp_and AND exp_not
         {
             $$.texto = fmt("%s && %s", $1.texto, $3.texto);
-            if ($1.tipo.base == TIPO_ERRO || $3.tipo.base == TIPO_ERRO) {
-                $$.tipo = criar_tipo(TIPO_ERRO, 0);
-            } else if ($1.tipo.base != TIPO_INT || $1.tipo.dimensao != 0 ||
-                       $3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0) {
-                erro_semantico(yylineno, "Operador '&&' exige operandos logicos/inteiros, recebeu '%s' e '%s'.",
-                               tipo_para_string($1.tipo), tipo_para_string($3.tipo));
-                $$.tipo = criar_tipo(TIPO_ERRO, 0);
-            } else {
-                $$.tipo = criar_tipo(TIPO_INT, 0);
-            }
+            $$.tipo = verificar_binario_logico($1.tipo, $3.tipo, "&&", yylineno);
             free($1.texto); free($3.texto);
         }
     | exp_not { $$ = $1; }
@@ -998,15 +1031,7 @@ exp_not
     : NOT exp_not
         {
             $$.texto = fmt("!(%s)", $2.texto);
-            if ($2.tipo.base == TIPO_ERRO) {
-                $$.tipo = criar_tipo(TIPO_ERRO, 0);
-            } else if ($2.tipo.base != TIPO_INT || $2.tipo.dimensao != 0) {
-                erro_semantico(yylineno, "Operador '!' exige operando logico/inteiro, recebeu '%s'.",
-                               tipo_para_string($2.tipo));
-                $$.tipo = criar_tipo(TIPO_ERRO, 0);
-            } else {
-                $$.tipo = criar_tipo(TIPO_INT, 0);
-            }
+            $$.tipo = verificar_unario_logico($2.tipo, "!", yylineno);
             free($2.texto);
         }
     | exprelacional { $$ = $1; }
@@ -1048,23 +1073,39 @@ exparitimetica
     ;
 
 termo
-    : termo MUL potencia
+    : termo MUL unario
         {
             $$.texto = fmt("%s * %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "*", yylineno);
             free($1.texto); free($3.texto);
         }
-    | termo DIV potencia
+    | termo DIV unario
         {
             $$.texto = fmt("%s / %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "/", yylineno);
             free($1.texto); free($3.texto);
         }
+    | unario { $$ = $1; }
+    ;
+
+unario
+    : MINUS unario
+        {
+            $$.tipo = verificar_unario_aritmetico($2.tipo, "-", yylineno);
+            $$.texto = fmt("-(%s)", $2.texto);
+            free($2.texto);
+        }
+    | PLUS unario
+        {
+            $$.tipo = verificar_unario_aritmetico($2.tipo, "+", yylineno);
+            $$.texto = fmt("+(%s)", $2.texto);
+            free($2.texto);
+        }
     | potencia { $$ = $1; }
     ;
 
 potencia
-    : fator POW potencia
+    : fator POW unario
         {
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "**", yylineno);
             if ($$.tipo.base == TIPO_INT) {
@@ -1148,6 +1189,8 @@ fator
     | INT_NUM                 { $$.texto = fmt("%d", $1); $$.tipo = criar_tipo(TIPO_INT, 0); }
     | REAL_NUM                { $$.texto = fmt("%g", $1); $$.tipo = criar_tipo(TIPO_REAL, 0); }
     | STRING_LITERAL          { $$.texto = $1; $$.tipo = criar_tipo(TIPO_STRING, 0); }
+    | TRUE                    { $$.texto = strdup("true"); $$.tipo = criar_tipo(TIPO_BOOL, 0); }
+    | FALSE                   { $$.texto = strdup("false"); $$.tipo = criar_tipo(TIPO_BOOL, 0); }
     | arrayLiteral            { $$ = $1; }
     | LPAREN expressao RPAREN { $$.texto = fmt("(%s)", $2.texto); $$.tipo = $2.tipo; free($2.texto); }
     ;
@@ -1189,9 +1232,7 @@ arrayLiteral
                     $$.tipo = criar_tipo(elem_tipo.base, elem_tipo.dimensao + 1);
                 }
             }
-            free($2->texto);
-            free($2->c_texto);
-            free($2);
+            free_lista_args($2);
         }
     ;
 
@@ -1245,7 +1286,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    fprintf(out_c, "#include <stdio.h>\n#include <stdlib.h>\n#include <math.h>\n\n");
+    fprintf(out_c, "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n#include <string.h>\n#include <math.h>\n\n");
     int res = yyparse();
     fclose(out_c);
     fclose(yyin);

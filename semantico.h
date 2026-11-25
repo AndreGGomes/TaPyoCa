@@ -7,6 +7,7 @@ typedef enum {
     TIPO_INT,
     TIPO_REAL,
     TIPO_STRING,
+    TIPO_BOOL,
     TIPO_STRUCT
 } TipoBase;
 
@@ -75,7 +76,10 @@ const char* tipo_para_string(Tipo t);
 int tipos_compativeis(Tipo destino, Tipo origem);
 int tipos_identicos(Tipo t1, Tipo t2);
 Tipo verificar_binario_aritmetico(Tipo t1, Tipo t2, const char *op, int linha);
+Tipo verificar_unario_aritmetico(Tipo t, const char *op, int linha);
 Tipo verificar_relacional(Tipo t1, Tipo t2, const char *op, int linha);
+Tipo verificar_binario_logico(Tipo t1, Tipo t2, const char *op, int linha);
+Tipo verificar_unario_logico(Tipo t, const char *op, int linha);
 void erro_semantico(int linha, const char *fmt, ...);
 int obter_erros_semanticos(void);
 

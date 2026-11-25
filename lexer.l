@@ -88,11 +88,14 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 "ref"       { return REF; }
 "struct"    { return STRUCT; }
 "endstruct" { return ENDSTRUCT; }
+"true"      { return TRUE; }
+"false"     { return FALSE; }
 
  /* Tipos de Dados */
 "int"      { return INT; }
 "real"     { return REAL; }
 "string"   { return STRING; }
+"bool"     { return BOOL; }
 
  /* Símbolos e Operadores */
 "("        { return LPAREN; }

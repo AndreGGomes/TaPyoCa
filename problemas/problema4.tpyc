@@ -1,0 +1,116 @@
+struct rational_t
+    int numerador
+    int denominador
+endstruct
+
+# Auxiliar: Maximo Divisor Comum (Euclides sem operador '%')
+sub int mdc(int a, int b)
+    if (a < 0)
+        a = -a
+    endif
+    if (b < 0)
+        b = -b
+    endif
+    while (b != 0)
+        int resto = a - (a / b) * b
+        a = b
+        b = resto
+    endwhile
+    return a
+endsub
+
+# A) Cria e simplifica a fracao a/b (com b != 0 e denominador positivo)
+sub rational_t criar_racional(int a, int b)
+    rational_t r
+    if (b == 0)
+        print("Erro: denominador nao pode ser zero.")
+        r.numerador = 0
+        r.denominador = 1
+        return r
+    endif
+
+    if (b < 0)
+        a = -a
+        b = -b
+    endif
+
+    int divisor = mdc(a, b)
+    r.numerador = a / divisor
+    r.denominador = b / divisor
+    return r
+endsub
+
+# B) Verifica se dois racionais representam o mesmo numero
+sub bool iguais(rational_t r1, rational_t r2)
+    return r1.numerador * r2.denominador == r2.numerador * r1.denominador
+endsub
+
+# C.1) Soma: (a/b) + (c/d) = (a*d + c*b) / (b*d)
+sub rational_t soma(rational_t r1, rational_t r2)
+    int num = r1.numerador * r2.denominador + r2.numerador * r1.denominador
+    int den = r1.denominador * r2.denominador
+    return criar_racional(num, den)
+endsub
+
+# C.2) Negacao: -(a/b) = (-a)/b
+sub rational_t negacao(rational_t r)
+    return criar_racional(-r.numerador, r.denominador)
+endsub
+
+# C.3) Subtracao: (a/b) - (c/d) = (a*d - c*b) / (b*d)
+sub rational_t subtracao(rational_t r1, rational_t r2)
+    int num = r1.numerador * r2.denominador - r2.numerador * r1.denominador
+    int den = r1.denominador * r2.denominador
+    return criar_racional(num, den)
+endsub
+
+# C.4) Multiplicacao: (a/b) * (c/d) = (a*c) / (b*d)
+sub rational_t multiplicacao(rational_t r1, rational_t r2)
+    int num = r1.numerador * r2.numerador
+    int den = r1.denominador * r2.denominador
+    return criar_racional(num, den)
+endsub
+
+# C.5) Inverso: (a/b)^(-1) = b/a
+sub rational_t inverso(rational_t r)
+    return criar_racional(r.denominador, r.numerador)
+endsub
+
+# C.6) Divisao: (a/b) / (c/d) = (a*d) / (b*c)
+sub rational_t dividir(rational_t r1, rational_t r2)
+    int num = r1.numerador * r2.denominador
+    int den = r1.denominador * r2.numerador
+    return criar_racional(num, den)
+endsub
+
+main()
+    # Questao A: criacao dos racionais
+    rational_t r1 = criar_racional(2, 4)
+    rational_t r2 = criar_racional(3, 6)
+    rational_t r3 = criar_racional(3, 5)
+
+    print("r1 (2/4) -> numerador:", r1.numerador, "| denominador:", r1.denominador)
+    print("r2 (3/6) -> numerador:", r2.numerador, "| denominador:", r2.denominador)
+    print("r3 (3/5) -> numerador:", r3.numerador, "| denominador:", r3.denominador)
+
+    # Questao B: verificacao de igualdade
+    bool eq_1_2 = iguais(r1, r2)
+    bool eq_1_3 = iguais(r1, r3)
+    print("iguais(r1, r2):", eq_1_2)
+    print("iguais(r1, r3):", eq_1_3)
+
+    # Questao C: operacoes aritmeticas
+    rational_t r_soma = soma(r1, r3)
+    rational_t r_neg  = negacao(r1)
+    rational_t r_sub  = subtracao(r1, r3)
+    rational_t r_mul  = multiplicacao(r1, r3)
+    rational_t r_inv  = inverso(r3)
+    rational_t r_div  = dividir(r1, r3)
+
+    print("Soma (r1 + r3) -> numerador:", r_soma.numerador, "| denominador:", r_soma.denominador)
+    print("Negacao (-r1) -> numerador:", r_neg.numerador, "| denominador:", r_neg.denominador)
+    print("Subtracao (r1 - r3) -> numerador:", r_sub.numerador, "| denominador:", r_sub.denominador)
+    print("Multiplicacao (r1 * r3) -> numerador:", r_mul.numerador, "| denominador:", r_mul.denominador)
+    print("Inverso (1 / r3) -> numerador:", r_inv.numerador, "| denominador:", r_inv.denominador)
+    print("Divisao (r1 / r3) -> numerador:", r_div.numerador, "| denominador:", r_div.denominador)
+endmain
