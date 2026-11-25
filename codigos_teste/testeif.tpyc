@@ -1,0 +1,18 @@
+struct Pessoa
+    string nome
+    int idade
+endstruct
+
+main()
+    Pessoa a
+    print("digite seu nome:")
+    a.nome = read()
+    print("digite sua idade:")
+    a.idade = read()
+
+    if (a.idade >= 18)
+        print(a.nome, "voce é maior de idade")
+    else
+        print(a.nome, "você é menor de idade")
+    endif
+endmain

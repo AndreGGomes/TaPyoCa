@@ -29,6 +29,19 @@
 #include <stdarg.h>
 #include "semantico.h"
 
+#define MAX_IFS 100
+#define MAX_LOOPS 100
+
+typedef struct {
+    char *label_else;
+    char *label_fim;
+} IfLabels;
+
+typedef struct {
+    char *inicio;
+    char *fim;
+} LoopLabels;
+
 int yylex(void);
 int yyerror(char *s);
 extern int yylineno;
@@ -37,6 +50,11 @@ extern char *yytext;
 /* ---------- utilitarios de impressao ---------- */
 
 static int depth = 0;   /* nivel de aninhamento atual (4 espacos por tab) */
+static int loop_depth = 0;  /* controla quantos lacos estao ativos */
+static IfLabels if_stack[MAX_IFS];
+static int if_top = -1;
+static LoopLabels loop_stack[MAX_LOOPS];
+static int loop_top = -1;
 
 /* Monta uma string nova (malloc) estilo printf. Quem recebe deve dar free. */
 static char *fmt(const char *f, ...) {
@@ -66,6 +84,48 @@ static FILE *out_c = NULL;
 static int novo_label(void) {
     static int label_count = 0;
     return label_count++;
+}
+
+static char *new_label(void) {
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "L%d", novo_label());
+    return strdup(buffer);
+}
+
+static void push_if(char *label_else, char *label_fim) {
+    if (if_top >= MAX_IFS - 1) {
+        fprintf(stderr, "Erro: limite de ifs aninhados excedido.\n");
+        exit(1);
+    }
+    if_top++;
+    if_stack[if_top].label_else = label_else;
+    if_stack[if_top].label_fim  = label_fim;
+}
+
+static void pop_if(void) {
+    if (if_top >= 0) {
+        free(if_stack[if_top].label_else);
+        free(if_stack[if_top].label_fim);
+        if_top--;
+    }
+}
+
+static void push_loop(char *inicio, char *fim) {
+    if (loop_top >= MAX_LOOPS - 1) {
+        fprintf(stderr, "Erro: limite de lacos aninhados excedido.\n");
+        exit(1);
+    }
+    loop_top++;
+    loop_stack[loop_top].inicio = inicio;
+    loop_stack[loop_top].fim = fim;
+}
+
+static void pop_loop(void) {
+    if (loop_top >= 0) {
+        free(loop_stack[loop_top].inicio);
+        free(loop_stack[loop_top].fim);
+        loop_top--;
+    }
 }
 
 /* Emite uma linha indentada no arquivo C */
@@ -116,9 +176,10 @@ static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 }
 
 %token MAIN LPAREN RPAREN NEWLINE INDENT DEDENT ENDMAIN SUB ENDSUB COMMA
-%token ASSIGN RETURN IF ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL
-%token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV PRINT READ REF
+%token ASSIGN RETURN IF ELSE ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL
+%token LT LEQ GT GEQ EQ NEQ PLUS MINUS MUL DIV POW PRINT READ REF
 %token STRUCT ENDSTRUCT DOT
+%token BREAK
 
 %token <ival> INT_NUM
 %token <fval> REAL_NUM
@@ -131,7 +192,7 @@ static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 %type <plist> parametros_opt lista_parametros
 %type <alist> argumentos_opt lista_argumentos array_elements_opt
 %type <expr> expressao exprelacional exparitimetica termo
-%type <expr> l_value fator arrayLiteral chamadafuncao
+%type <expr> l_value fator potencia arrayLiteral chamadafuncao
 
 %start programa
 
@@ -383,6 +444,7 @@ comando
     | atribuicao    {}
     | comandoif     {}
     | comandowhile  {}
+    | comandobreak  {}
     | chamadafuncao { pr("[chamada] %s", $1.texto); emit_c("%s;", $1.texto); free($1.texto); }
     | retorno       {}
     | comandoprint  {}
@@ -570,19 +632,57 @@ atribuicao
 comandowhile
     : WHILE LPAREN expressao RPAREN
         {
+            char *label_inicio = new_label();
+            char *label_fim = new_label();
+
             pr("[while] while (%s)", $3.texto);
-            depth++;
-            if ($3.tipo.base != TIPO_ERRO && ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
-                erro_semantico(yylineno, "Condicao do 'while' deve ser logica/inteira, recebeu '%s'.",
-                               tipo_para_string($3.tipo));
+
+            /* Valida a condicao do while */
+            if ($3.tipo.base != TIPO_ERRO &&
+                ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
+                erro_semantico(yylineno,
+                    "Condicao do 'while' deve ser logica/inteira, recebeu '%s'.",
+                    tipo_para_string($3.tipo));
             }
+
+            /* Armazena as labels na pilha */
+            push_loop(label_inicio, label_fim);
+
+            /* Gera a label de inicio */
+            emit_c("%s:", label_inicio);
+
+            /* Verifica a condicao e permite sair do laco */
+            emit_c("if( !(%s) ) goto %s;", $3.texto, label_fim);
+
+            /* Abre um bloco para preservar o escopo */
+            emit_c("{");
+
+            depth++;
+            loop_depth++;
+
             entrar_escopo();
+
             free($3.texto);
         }
       NEWLINE corpo_bloco ENDWHILE
         {
             sair_escopo();
+
             depth--;
+            loop_depth--;
+
+            /* Fecha o bloco do laco */
+            emit_c("}");
+
+            /* Retorna ao inicio do laco */
+            emit_c("goto %s;", loop_stack[loop_top].inicio);
+
+            /* Gera a label de saida */
+            emit_c("%s: ;", loop_stack[loop_top].fim);
+
+            /* Remove as labels da pilha */
+            pop_loop();
+
             pr("[endwhile]");
         }
     ;
@@ -590,20 +690,93 @@ comandowhile
 comandoif
     : IF LPAREN expressao RPAREN
         {
+            char *label_else = new_label();
+            char *label_fim  = new_label();
+
             pr("[if] if (%s)", $3.texto);
-            depth++;
-            if ($3.tipo.base != TIPO_ERRO && ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
-                erro_semantico(yylineno, "Condicao do 'if' deve ser logica/inteira, recebeu '%s'.",
-                               tipo_para_string($3.tipo));
+
+            /* Valida a condicao */
+            if ($3.tipo.base != TIPO_ERRO &&
+                ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
+                erro_semantico(yylineno,
+                    "Condicao do 'if' deve ser logica/inteira, recebeu '%s'.",
+                    tipo_para_string($3.tipo));
             }
+
+            /* Armazena as labels na pilha */
+            push_if(label_else, label_fim);
+
+            /* Desvia para o else (ou para o fim, se nao houver else) quando falso */
+            emit_c("if( !(%s) ) goto %s;", $3.texto, label_else);
+
+            /* Abre um bloco para preservar o escopo do ramo 'if' */
+            emit_c("{");
+
+            depth++;
             entrar_escopo();
+
             free($3.texto);
+        }
+      NEWLINE corpo_bloco cauda_if
+    ;
+
+cauda_if
+    : ENDIF
+        {
+            sair_escopo();
+            depth--;
+
+            /* Fecha o bloco do ramo 'if' */
+            emit_c("}");
+
+            /* Sem 'else', label_else atua como ponto de saida */
+            emit_c("%s: ;", if_stack[if_top].label_else);
+
+            pop_if();
+            pr("[endif]");
+        }
+    | ELSE
+        {
+            sair_escopo();
+            depth--;
+
+            /* Fecha o bloco do ramo 'if' e salta sobre o 'else' */
+            emit_c("}");
+            emit_c("goto %s;", if_stack[if_top].label_fim);
+            emit_c("%s: ;", if_stack[if_top].label_else);
+
+            pr("[else]");
+
+            /* Abre um novo bloco e escopo para o ramo 'else' */
+            emit_c("{");
+            depth++;
+            entrar_escopo();
         }
       NEWLINE corpo_bloco ENDIF
         {
             sair_escopo();
             depth--;
+
+            /* Fecha o bloco do ramo 'else' e emite a label final */
+            emit_c("}");
+            emit_c("%s: ;", if_stack[if_top].label_fim);
+
+            pop_if();
             pr("[endif]");
+        }
+    ;
+
+comandobreak
+    : BREAK
+        {
+            pr("[break]");
+
+            if (loop_depth == 0) {
+                erro_semantico(yylineno,
+                    "Comando 'break' so pode ser utilizado dentro de um while.");
+            } else {
+                emit_c("goto %s;", loop_stack[loop_top].fim);
+            }
         }
     ;
 
@@ -819,16 +992,30 @@ exparitimetica
     ;
 
 termo
-    : termo MUL fator
+    : termo MUL potencia
         {
             $$.texto = fmt("%s * %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "*", yylineno);
             free($1.texto); free($3.texto);
         }
-    | termo DIV fator
+    | termo DIV potencia
         {
             $$.texto = fmt("%s / %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "/", yylineno);
+            free($1.texto); free($3.texto);
+        }
+    | potencia { $$ = $1; }
+    ;
+
+potencia
+    : fator POW potencia
+        {
+            $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "**", yylineno);
+            if ($$.tipo.base == TIPO_INT) {
+                $$.texto = fmt("((int)pow(%s, %s))", $1.texto, $3.texto);
+            } else {
+                $$.texto = fmt("pow(%s, %s)", $1.texto, $3.texto);
+            }
             free($1.texto); free($3.texto);
         }
     | fator { $$ = $1; }
@@ -1002,7 +1189,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    fprintf(out_c, "#include <stdio.h>\n#include <stdlib.h>\n\n");
+    fprintf(out_c, "#include <stdio.h>\n#include <stdlib.h>\n#include <math.h>\n\n");
     int res = yyparse();
     fclose(out_c);
     fclose(yyin);
@@ -1014,7 +1201,7 @@ int main(int argc, char **argv) {
 
     /* Compila <nome_base>.c para o executavel ./<nome_base> */
     char cmd[700];
-    snprintf(cmd, sizeof(cmd), "gcc \"%s\" -o \"%s\"", nome_c, nome_base);
+    snprintf(cmd, sizeof(cmd), "gcc \"%s\" -o \"%s\" -lm", nome_c, nome_base);
     int gcc_res = system(cmd);
     if (gcc_res != 0) {
         fprintf(stderr, "Erro ao compilar %s com o gcc.\n", nome_c);
