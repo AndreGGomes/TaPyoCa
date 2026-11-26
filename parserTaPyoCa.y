@@ -957,10 +957,26 @@ retorno
     ;
 
 chamadafuncao
-    : ID LPAREN argumentos_opt RPAREN
+    : ID LPAREN STRUCT_ID RPAREN
+        {
+            if (strcmp($1, "create") != 0) {
+                erro_semantico(yylineno, "Subrotina '%s' nao pode receber o tipo '%s' como argumento.", $1, $3);
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                $$.texto = strdup("NULL");
+                $$.is_ref = 0;
+            } else {
+                $$.tipo = criar_tipo_struct($3, 0);
+                $$.texto = fmt("calloc(1, sizeof(struct %s))", $3);
+                $$.is_ref = 1;
+            }
+            free($1);
+            free($3);
+        }
+    | ID LPAREN argumentos_opt RPAREN
         {
             /* 1. Built-in: comprimento(array) -> int */
             if (strcmp($1, "comprimento") == 0) {
+                $$.is_ref = 0;
                 if ($3->count != 1) {
                     erro_semantico(yylineno, "'comprimento' espera 1 argumento, recebeu %d.", $3->count);
                     $$.tipo = criar_tipo(TIPO_ERRO, 0);
@@ -987,6 +1003,7 @@ chamadafuncao
             }
             /* 2. Built-in: swap(a, b) -> void */
             else if (strcmp($1, "swap") == 0) {
+                $$.is_ref = 0;
                 if ($3->count != 2) {
                     erro_semantico(yylineno, "'swap' espera 2 argumentos, recebeu %d.", $3->count);
                 } else if (!tipos_identicos($3->tipos[0], $3->tipos[1])) {
@@ -998,6 +1015,7 @@ chamadafuncao
             }
             /* 3. Built-in: append(ref array, elemento) -> void */
             else if (strcmp($1, "append") == 0) {
+                $$.is_ref = 0;
                 $$.tipo = criar_tipo(TIPO_VOID, 0);
                 if ($3->count != 2) {
                     erro_semantico(yylineno, "'append' espera 2 argumentos (ref array, elemento), recebeu %d.", $3->count);
@@ -1036,8 +1054,16 @@ chamadafuncao
                     }
                 }
             }
-            /* 4. Demais subrotinas definidas pelo usuario */
+            /* 4. Uso incorreto de create() sem nome de struct */
+            else if (strcmp($1, "create") == 0) {
+                erro_semantico(yylineno, "'create' espera o nome de uma struct declarada (ex: create(node)).");
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                $$.texto = strdup("NULL");
+                $$.is_ref = 0;
+            }
+            /* 5. Demais subrotinas definidas pelo usuario */
             else {
+                $$.is_ref = 0;
                 $$.texto = fmt("%s(%s)", $1, $3->c_texto);
                 Simbolo *s = buscar_simbolo($1);
                 if (!s) {
@@ -1105,7 +1131,7 @@ lista_argumentos
                 char *novo_t = fmt("%s, ref %s", $1->texto, $4.texto);
                 char *novo_c = ($4.tipo.dimensao > 0)
                     ? fmt("%s, &(%s), &(_len_%s)", $1->c_texto, $4.texto, $4.texto)
-                    : fmt("%s, &(%s)", $1->c_texto, $4.texto);
+                    : fmt("%s, %s", $1->c_texto, $1->c_itens[idx]);
                 free($1->texto); free($1->c_texto);
                 $1->texto = novo_t;
                 $1->c_texto = novo_c;
@@ -1115,19 +1141,18 @@ lista_argumentos
             free($4.texto);
             $$ = $1;
         }
-        
     | REF l_value
         {
             ListaArgs *la = calloc(1, sizeof(ListaArgs));
             la->tipos[0] = $2.tipo;
             la->is_ref[0] = 1;
             la->nomes[0] = strdup($2.texto);
-            la->c_itens[0] = fmt("&(%s)", $2.texto);
+            la->c_itens[0] = $2.is_ref ? strdup($2.texto) : fmt("&(%s)", $2.texto);
             la->count = 1;
             la->texto = fmt("ref %s", $2.texto);
             la->c_texto = ($2.tipo.dimensao > 0)
                 ? fmt("&(%s), &(_len_%s)", $2.texto, $2.texto)
-                : fmt("&(%s)", $2.texto);
+                : strdup(la->c_itens[0]);
             free($2.texto);
             $$ = la;
         }
@@ -1191,6 +1216,7 @@ explogica
         {
             $$.texto = fmt("%s || %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_logico($1.tipo, $3.tipo, "||", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | exp_and { $$ = $1; }
@@ -1201,6 +1227,7 @@ exp_and
         {
             $$.texto = fmt("%s && %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_logico($1.tipo, $3.tipo, "&&", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | exp_not { $$ = $1; }
@@ -1211,6 +1238,7 @@ exp_not
         {
             $$.texto = fmt("!(%s)", $2.texto);
             $$.tipo = verificar_unario_logico($2.tipo, "!", yylineno);
+            $$.is_ref = 0;
             free($2.texto);
         }
     | exprelacional { $$ = $1; }
@@ -1248,12 +1276,14 @@ exparitimetica
         {
             $$.texto = fmt("%s + %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "+", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | exparitimetica MINUS termo
         {
             $$.texto = fmt("%s - %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "-", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | termo { $$ = $1; }
@@ -1264,12 +1294,14 @@ termo
         {
             $$.texto = fmt("%s * %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "*", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | termo DIV unario
         {
             $$.texto = fmt("%s / %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "/", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | unario { $$ = $1; }
@@ -1280,12 +1312,14 @@ unario
         {
             $$.tipo = verificar_unario_aritmetico($2.tipo, "-", yylineno);
             $$.texto = fmt("-(%s)", $2.texto);
+            $$.is_ref = 0;
             free($2.texto);
         }
     | PLUS unario
         {
             $$.tipo = verificar_unario_aritmetico($2.tipo, "+", yylineno);
             $$.texto = fmt("+(%s)", $2.texto);
+            $$.is_ref = 0;
             free($2.texto);
         }
     | potencia { $$ = $1; }
@@ -1295,6 +1329,7 @@ potencia
     : fator POW unario
         {
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "**", yylineno);
+            $$.is_ref = 0;
             if ($$.tipo.base == TIPO_INT) {
                 $$.texto = fmt("((int)pow(%s, %s))", $1.texto, $3.texto);
             } else {
@@ -1322,10 +1357,16 @@ l_value
             } else {
                 $$.tipo = s->tipo;
                 if (s->is_ref == 1) {
-                    /* Parametro 'ref' de subrotina: ja desreferencia automaticamente */
-                    $$.texto = fmt("(*%s)", $1);
-                    $$.is_ref = 0;
-                    free($1);
+                    if (s->tipo.base == TIPO_STRUCT && s->tipo.dimensao == 0) {
+                        /* Parametro 'ref' de struct ja e ponteiro (struct T*) */
+                        $$.texto = $1;
+                        $$.is_ref = 1;
+                    } else {
+                        /* Parametro 'ref' escalar/array: desreferencia automaticamente */
+                        $$.texto = fmt("(*%s)", $1);
+                        $$.is_ref = 0;
+                        free($1);
+                    }
                 } else if (s->is_ref == 2) {
                     /* Variavel local declarada com 'ref tipo id' */
                     $$.texto = $1;
@@ -1390,7 +1431,7 @@ l_value
     ;
 
 fator
-    : chamadafuncao           { $$ = $1; $$.is_ref = 0; }
+    : chamadafuncao           { $$ = $1; }
     | l_value                 { $$ = $1; }
     | INT_NUM                 { $$.texto = fmt("%d", $1); $$.tipo = criar_tipo(TIPO_INT, 0); $$.is_ref = 0; }
     | REAL_NUM                { $$.texto = fmt("%g", $1); $$.tipo = criar_tipo(TIPO_REAL, 0); $$.is_ref = 0; }

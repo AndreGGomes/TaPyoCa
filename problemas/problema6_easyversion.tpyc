@@ -1,0 +1,43 @@
+struct node
+    int valor
+    ref node next
+endstruct
+
+sub imprimir_lista(ref node inicio)
+    ref node atual = inicio
+    while (atual != null)
+        print(atual.valor)
+        atual = atual.next
+    endwhile
+endsub
+
+main()
+    ref node raiz = create(node)
+
+    int valor
+    int contador = 0
+
+    print("digite o valor do elemento raiz (negativo para sair):")
+    raiz.valor = read()
+    contador = contador + 1
+
+    ref node anterior = raiz
+
+    while (true)
+        print("digite o elemento", contador)
+        valor = read()
+
+        if (valor < 0)
+            break
+        endif
+
+        ref node proximo = create(node)
+        proximo.valor = valor
+        anterior.next = proximo
+        anterior = proximo
+        contador = contador + 1
+    endwhile
+
+    print("Elementos da lista:")
+    imprimir_lista(ref raiz)
+endmain
