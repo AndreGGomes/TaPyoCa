@@ -1,0 +1,104 @@
+# Le uma matriz com 'linhas' x 'colunas' usando arrays dinamicos
+sub real[][] ler_matriz(int linhas, int colunas)
+    real[][] mat
+    int i = 0
+    while (i < linhas)
+        real[] linha
+        int j = 0
+        while (j < colunas)
+            real val = read()
+            append(ref linha, val)
+            j = j + 1
+        endwhile
+        append(ref mat, linha)
+        i = i + 1
+    endwhile
+    return mat
+endsub
+
+# Imprime uma matriz formatada linha por linha
+sub imprimir_matriz(real[][] mat, int linhas, int colunas)
+    int i = 0
+    while (i < linhas)
+        int j = 0
+        while (j < colunas)
+            print("  [", i, ",", j, "] =", mat[i][j])
+            j = j + 1
+        endwhile
+        print()
+        i = i + 1
+    endwhile
+endsub
+
+# Calcula e imprime a soma A + B (se possivel)
+sub somar_matrizes(real[][] A, int lA, int cA, real[][] B, int lB, int cB)
+    if (lA != lB || cA != cB)
+        print("Impossivel realizar a soma: as matrizes possuem dimensoes diferentes.")
+    else
+        real[][] C
+        int i = 0
+        while (i < lA)
+            real[] linha
+            int j = 0
+            while (j < cA)
+                append(ref linha, A[i][j] + B[i][j])
+                j = j + 1
+            endwhile
+            append(ref C, linha)
+            i = i + 1
+        endwhile
+        print("=== Soma das Matrizes (A + B) ===")
+        imprimir_matriz(C, lA, cA)
+    endif
+endsub
+
+# Calcula e imprime o produto A * B (se possivel)
+sub multiplicar_matrizes(real[][] A, int lA, int cA, real[][] B, int lB, int cB)
+    if (cA != lB)
+        print("Impossivel realizar o produto: colunas de A diferente de linhas de B.")
+    else
+        real[][] P
+        int i = 0
+        while (i < lA)
+            real[] linha
+            int j = 0
+            while (j < cB)
+                real soma = 0.0
+                int k = 0
+                while (k < cA)
+                    soma = soma + A[i][k] * B[k][j]
+                    k = k + 1
+                endwhile
+                append(ref linha, soma)
+                j = j + 1
+            endwhile
+            append(ref P, linha)
+            i = i + 1
+        endwhile
+        print("=== Produto das Matrizes (A * B) ===")
+        imprimir_matriz(P, lA, cB)
+    endif
+endsub
+
+main()
+    print("Digite linhas e colunas da matriz A:")
+    int lA = read()
+    int cA = read()
+
+    print("Digite linhas e colunas da matriz B:")
+    int lB = read()
+    int cB = read()
+
+    if (lA <= 0 || cA <= 0 || lB <= 0 || cB <= 0)
+        print("Erro: as dimensoes das matrizes devem ser positivas.")
+    else
+        print("Digite os elementos da matriz A:")
+        real[][] A = ler_matriz(lA, cA)
+
+        print("Digite os elementos da matriz B:")
+        real[][] B = ler_matriz(lB, cB)
+
+        somar_matrizes(A, lA, cA, B, lB, cB)
+        multiplicar_matrizes(A, lA, cA, B, lB, cB)
+    endif
+endmain
