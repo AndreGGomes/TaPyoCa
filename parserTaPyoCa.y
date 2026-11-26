@@ -17,6 +17,7 @@
     typedef struct {
         Tipo tipos[32];
         int is_ref[32];
+        char *nomes[32];
         char *c_itens[32];
         int count;
         char *texto;
@@ -50,7 +51,7 @@ extern char *yytext;
 
 /* ---------- utilitarios de impressao ---------- */
 
-static int depth = 0;   /* nivel de aninhamento atual (4 espacos por tab) */
+static int depth = 0;       /* nivel de aninhamento atual (4 espacos por tab) */
 static int loop_depth = 0;  /* controla quantos lacos estao ativos */
 static IfLabels if_stack[MAX_IFS];
 static int if_top = -1;
@@ -79,8 +80,6 @@ static void pr(const char *f, ...) {
     va_end(ap);
     printf("\n");
 }
-
-static FILE *out_c = NULL;
 
 static int novo_label(void) {
     static int label_count = 0;
@@ -129,6 +128,8 @@ static void pop_loop(void) {
     }
 }
 
+static FILE *out_c = NULL;
+
 /* Emite uma linha indentada no arquivo C */
 static void emit_c(const char *f, ...) {
     if (!out_c) return;
@@ -172,6 +173,7 @@ static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 static void free_lista_args(ListaArgs *la) {
     if (!la) return;
     for (int i = 0; i < la->count; i++) {
+        free(la->nomes[i]);
         free(la->c_itens[i]);
     }
     free(la->texto);
@@ -191,7 +193,7 @@ static void free_lista_args(ListaArgs *la) {
 
 %token MAIN LPAREN RPAREN NEWLINE INDENT DEDENT ENDMAIN SUB ENDSUB COMMA
 %token ASSIGN RETURN IF ELSE ENDIF WHILE ENDWHILE INT LBRACKET RBRACKET STRING REAL BOOL
-%token TRUE FALSE
+%token TRUE FALSE NULL_VAL
 %token LT LEQ GT GEQ EQ NEQ AND OR NOT PLUS MINUS MUL DIV POW PRINT READ REF
 %token STRUCT ENDSTRUCT DOT
 %token BREAK
@@ -271,11 +273,20 @@ campos
     ;
 
 campo
-    : tipo ID
+    : REF tipo ID
+        {
+            pr("[campo] ref %s %s", $2, $3);
+            Tipo t = parse_tipo_string($2);
+            adicionar_campo_struct(struct_atual, $3, t, 1, yylineno);
+            char *t_c = tipo_para_c(t);
+            emit_c("%s *%s;", t_c, $3);
+            free(t_c); free($2); free($3);
+        }
+    | tipo ID
         {
             pr("[campo] %s %s", $1, $2);
             Tipo t = parse_tipo_string($1);
-            adicionar_campo_struct(struct_atual, $2, t, yylineno);
+            adicionar_campo_struct(struct_atual, $2, t, 0, yylineno);
             char *t_c = tipo_para_c(t);
             emit_c("%s %s;", t_c, $2);
             free(t_c); free($1); free($2);
@@ -377,7 +388,9 @@ lista_parametros
                 $$->is_ref[idx] = 1; /* Marca como parametro por referencia */
 
                 char *novo = fmt("%s, ref %s %s", $$->texto, $4, $$->nomes[idx]);
-                char *novo_c = fmt("%s, %s *%s", $$->c_texto, t_c, $$->nomes[idx]);
+                char *novo_c = (t.dimensao > 0)
+                    ? fmt("%s, %s *%s, int *_len_%s", $$->c_texto, t_c, $$->nomes[idx], $$->nomes[idx])
+                    : fmt("%s, %s *%s", $$->c_texto, t_c, $$->nomes[idx]);
                 free($$->texto); free($$->c_texto);
                 $$->texto = novo;
                 $$->c_texto = novo_c;
@@ -398,7 +411,9 @@ lista_parametros
             lp->is_ref[0] = 1; /* Marca como parametro por referencia */
             lp->count = 1;
             lp->texto = fmt("ref %s %s", $2, $3);
-            lp->c_texto = fmt("%s *%s", t_c, $3);
+            lp->c_texto = (t.dimensao > 0)
+                ? fmt("%s *%s, int *_len_%s", t_c, $3, $3)
+                : fmt("%s *%s", t_c, $3);
             free($2); free(t_c);
             $$ = lp;
         }
@@ -415,7 +430,9 @@ lista_parametros
                 $$->is_ref[idx] = 0; /* Parametro normal (por valor) */
 
                 char *novo = fmt("%s, %s %s", $$->texto, $3, $$->nomes[idx]);
-                char *novo_c = fmt("%s, %s %s", $$->c_texto, t_c, $$->nomes[idx]);
+                char *novo_c = (t.dimensao > 0)
+                    ? fmt("%s, %s %s, int _len_%s", $$->c_texto, t_c, $$->nomes[idx], $$->nomes[idx])
+                    : fmt("%s, %s %s", $$->c_texto, t_c, $$->nomes[idx]);
                 free($$->texto); free($$->c_texto);
                 $$->texto = novo;
                 $$->c_texto = novo_c;
@@ -436,7 +453,9 @@ lista_parametros
             lp->is_ref[0] = 0; /* Parametro normal (por valor) */
             lp->count = 1;
             lp->texto = fmt("%s %s", $1, $2);
-            lp->c_texto = fmt("%s %s", t_c, $2);
+            lp->c_texto = (t.dimensao > 0)
+                ? fmt("%s %s, int _len_%s", t_c, $2, $2)
+                : fmt("%s %s", t_c, $2);
             free($1); free(t_c);
             $$ = lp;
         }
@@ -597,8 +616,21 @@ declaracaovar
                         char *init = strdup($4.texto);
                         init[0] = '{';
                         init[strlen(init) - 1] = '}';
-                        emit_c("%s %s[] = %s;", elem_c, $2, init);
+                        /* Aloca no heap para permitir realloc futuro com append() */
+                        emit_c("%s _tmp_%s[] = %s;", elem_c, $2, init);
+                        emit_c("int _len_%s = sizeof(_tmp_%s) / sizeof(%s);", $2, $2, elem_c);
+                        emit_c("%s %s = malloc(sizeof(_tmp_%s));", t_c, $2, $2);
+                        emit_c("memcpy(%s, _tmp_%s, sizeof(_tmp_%s));", $2, $2, $2);
                         free(elem_c); free(init);
+                    } else if (t_var.dimensao > 0) {
+                        emit_c("%s %s = %s;", t_c, $2, $4.texto);
+                        if (strchr($4.texto, '(') == NULL && strchr($4.texto, '[') == NULL) {
+                            emit_c("int _len_%s = _len_%s;", $2, $4.texto);
+                        } else {
+                            emit_c("int _len_%s = 0;", $2);
+                        }
+                    } else if ($4.is_ref) {
+                        emit_c("%s %s = *(%s);", t_c, $2, $4.texto);
                     } else {
                         emit_c("%s %s = %s;", t_c, $2, $4.texto);
                     }
@@ -613,10 +645,63 @@ declaracaovar
             Tipo t_var = parse_tipo_string($1);
             if (inserir_variavel($2, t_var, yylineno) != NULL) {
                 char *t_c = tipo_para_c(t_var);
-                emit_c("%s %s;", t_c, $2);
+                if (t_var.dimensao > 0) {
+                    emit_c("%s %s = NULL;", t_c, $2);
+                    emit_c("int _len_%s = 0;", $2);
+                } else {
+                    emit_c("%s %s;", t_c, $2);
+                }
                 free(t_c);
             }
             free($1); free($2);
+        }
+    | REF tipo ID ASSIGN REF l_value
+        {
+            pr("[decl] ref %s %s <- ref %s", $2, $3, $6.texto);
+            Tipo t_var = parse_tipo_string($2);
+            if (inserir_variavel_ref($3, t_var, 2, yylineno) != NULL) {
+                if (!tipos_identicos(t_var, $6.tipo)) {
+                    erro_semantico(yylineno, "Referencia '%s' (%s) incompativel com '%s'.",
+                                   $3, tipo_para_string(t_var), tipo_para_string($6.tipo));
+                } else {
+                    char *t_c = tipo_para_c(t_var);
+                    if ($6.is_ref) emit_c("%s *%s = %s;", t_c, $3, $6.texto);
+                    else           emit_c("%s *%s = &(%s);", t_c, $3, $6.texto);
+                    free(t_c);
+                }
+            }
+            free($2); free($3); free($6.texto);
+        }
+    | REF tipo ID ASSIGN expressao
+        {
+            pr("[decl] ref %s %s <- %s", $2, $3, $5.texto);
+            Tipo t_var = parse_tipo_string($2);
+            if (inserir_variavel_ref($3, t_var, 2, yylineno) != NULL) {
+                if ($5.tipo.base == TIPO_NULL) {
+                    char *t_c = tipo_para_c(t_var);
+                    emit_c("%s *%s = NULL;", t_c, $3);
+                    free(t_c);
+                } else if (!$5.is_ref || !tipos_identicos(t_var, $5.tipo)) {
+                    erro_semantico(yylineno, "Referencia '%s' (%s) exige 'ref' ou 'null'.",
+                                   $3, tipo_para_string(t_var));
+                } else {
+                    char *t_c = tipo_para_c(t_var);
+                    emit_c("%s *%s = %s;", t_c, $3, $5.texto);
+                    free(t_c);
+                }
+            }
+            free($2); free($3); free($5.texto);
+        }
+    | REF tipo ID
+        {
+            pr("[decl] ref %s %s", $2, $3);
+            Tipo t_var = parse_tipo_string($2);
+            if (inserir_variavel_ref($3, t_var, 2, yylineno) != NULL) {
+                char *t_c = tipo_para_c(t_var);
+                emit_c("%s *%s = NULL;", t_c, $3);
+                free(t_c);
+            }
+            free($2); free($3);
         }
     ;
 
@@ -659,14 +744,45 @@ atribuicao
             }
             free($1.texto);
         }
+    | l_value ASSIGN REF l_value
+        {
+            pr("[atrib] %s <- ref %s", $1.texto, $4.texto);
+            if ($1.tipo.base != TIPO_ERRO && $4.tipo.base != TIPO_ERRO) {
+                if (!$1.is_ref) {
+                    erro_semantico(yylineno, "'%s' nao e uma referencia ('ref') e nao pode receber 'ref %s'.",
+                                   $1.texto, $4.texto);
+                } else if (!tipos_identicos($1.tipo, $4.tipo)) {
+                    erro_semantico(yylineno, "Referencia incompativel: '%s' exige '%s', recebeu '%s'.",
+                                   $1.texto, tipo_para_string($1.tipo), tipo_para_string($4.tipo));
+                } else if ($4.is_ref) {
+                    emit_c("%s = %s;", $1.texto, $4.texto);
+                } else {
+                    emit_c("%s = &(%s);", $1.texto, $4.texto);
+                }
+            }
+            free($1.texto); free($4.texto);
+        }
     | l_value ASSIGN expressao
         {
             pr("[atrib] %s <- %s", $1.texto, $3.texto);
-            if (!tipos_compativeis($1.tipo, $3.tipo)) {
-                erro_semantico(yylineno, "Atribuicao incompativel: '%s' espera '%s', mas recebeu '%s'.",
-                               $1.texto, tipo_para_string($1.tipo), tipo_para_string($3.tipo));
-            } else {
-                emit_c("%s = %s;", $1.texto, $3.texto);
+            if ($1.tipo.base != TIPO_ERRO && $3.tipo.base != TIPO_ERRO) {
+                if ($1.is_ref) {
+                    if ($3.tipo.base == TIPO_NULL) {
+                        emit_c("%s = NULL;", $1.texto);
+                    } else if ($3.is_ref && tipos_identicos($1.tipo, $3.tipo)) {
+                        emit_c("%s = %s;", $1.texto, $3.texto);
+                    } else {
+                        erro_semantico(yylineno, "Atribuicao invalida para referencia '%s': use 'ref' ou 'null'.",
+                                       $1.texto);
+                    }
+                } else if (!tipos_compativeis($1.tipo, $3.tipo)) {
+                    erro_semantico(yylineno, "Atribuicao incompativel: '%s' espera '%s', mas recebeu '%s'.",
+                                   $1.texto, tipo_para_string($1.tipo), tipo_para_string($3.tipo));
+                } else if ($3.is_ref) {
+                    emit_c("%s = *(%s);", $1.texto, $3.texto);
+                } else {
+                    emit_c("%s = %s;", $1.texto, $3.texto);
+                }
             }
             free($1.texto); free($3.texto);
         }
@@ -841,29 +957,53 @@ retorno
     ;
 
 chamadafuncao
-    : ID LPAREN argumentos_opt RPAREN
+    : ID LPAREN STRUCT_ID RPAREN
         {
-            /* Emite a chamada usando c_texto (que contem '&(...)' nos argumentos ref) */
-            $$.texto = fmt("%s(%s)", $1, $3->c_texto);
-
+            if (strcmp($1, "create") != 0) {
+                erro_semantico(yylineno, "Subrotina '%s' nao pode receber o tipo '%s' como argumento.", $1, $3);
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                $$.texto = strdup("NULL");
+                $$.is_ref = 0;
+            } else {
+                $$.tipo = criar_tipo_struct($3, 0);
+                $$.texto = fmt("calloc(1, sizeof(struct %s))", $3);
+                $$.is_ref = 1;
+            }
+            free($1);
+            free($3);
+        }
+    | ID LPAREN argumentos_opt RPAREN
+        {
             /* 1. Built-in: comprimento(array) -> int */
             if (strcmp($1, "comprimento") == 0) {
+                $$.is_ref = 0;
                 if ($3->count != 1) {
                     erro_semantico(yylineno, "'comprimento' espera 1 argumento, recebeu %d.", $3->count);
                     $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                    $$.texto = strdup("0");
                 } else if ($3->is_ref[0]) {
                     erro_semantico(yylineno, "'comprimento' nao aceita argumento por referencia ('ref').");
                     $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                    $$.texto = strdup("0");
                 } else if ($3->tipos[0].dimensao <= 0 && $3->tipos[0].base != TIPO_ERRO) {
                     erro_semantico(yylineno, "'comprimento' espera um array, recebeu '%s'.",
                                    tipo_para_string($3->tipos[0]));
                     $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                    $$.texto = strdup("0");
                 } else {
                     $$.tipo = criar_tipo(TIPO_INT, 0);
+                    const char *nome_raw = $3->nomes[0];
+                    Simbolo *s_arr = buscar_simbolo(nome_raw);
+                    if (s_arr && s_arr->is_ref) {
+                        $$.texto = fmt("(*_len_%s)", nome_raw);
+                    } else {
+                        $$.texto = fmt("_len_%s", nome_raw);
+                    }
                 }
             }
             /* 2. Built-in: swap(a, b) -> void */
             else if (strcmp($1, "swap") == 0) {
+                $$.is_ref = 0;
                 if ($3->count != 2) {
                     erro_semantico(yylineno, "'swap' espera 2 argumentos, recebeu %d.", $3->count);
                 } else if (!tipos_identicos($3->tipos[0], $3->tipos[1])) {
@@ -871,9 +1011,60 @@ chamadafuncao
                                    tipo_para_string($3->tipos[0]), tipo_para_string($3->tipos[1]));
                 }
                 $$.tipo = criar_tipo(TIPO_VOID, 0);
+                $$.texto = fmt("%s(%s)", $1, $3->c_texto);
             }
-            /* 3. Demais subrotinas definidas pelo usuario */
+            /* 3. Built-in: append(ref array, elemento) -> void */
+            else if (strcmp($1, "append") == 0) {
+                $$.is_ref = 0;
+                $$.tipo = criar_tipo(TIPO_VOID, 0);
+                if ($3->count != 2) {
+                    erro_semantico(yylineno, "'append' espera 2 argumentos (ref array, elemento), recebeu %d.", $3->count);
+                    $$.texto = strdup("");
+                } else if (!$3->is_ref[0]) {
+                    erro_semantico(yylineno, "O primeiro argumento de 'append' deve ser passado por referencia ('ref').");
+                    $$.texto = strdup("");
+                } else if ($3->tipos[0].base != TIPO_ERRO && $3->tipos[0].dimensao <= 0) {
+                    erro_semantico(yylineno, "O primeiro argumento de 'append' deve ser um array, recebeu '%s'.",
+                                   tipo_para_string($3->tipos[0]));
+                    $$.texto = strdup("");
+                } else if ($3->is_ref[1]) {
+                    erro_semantico(yylineno, "O segundo argumento de 'append' nao pode ser passado por referencia ('ref').");
+                    $$.texto = strdup("");
+                } else {
+                    Tipo elem_esperado = criar_tipo($3->tipos[0].base, $3->tipos[0].dimensao - 1);
+                    if ($3->tipos[0].base == TIPO_STRUCT) {
+                        strcpy(elem_esperado.nome_struct, $3->tipos[0].nome_struct);
+                    }
+                    if (!tipos_compativeis(elem_esperado, $3->tipos[1])) {
+                        erro_semantico(yylineno, "Elemento incompativel em 'append': esperado '%s', recebeu '%s'.",
+                                       tipo_para_string(elem_esperado), tipo_para_string($3->tipos[1]));
+                        $$.texto = strdup("");
+                    } else if ($3->tipos[0].base != TIPO_ERRO) {
+                        const char *nome_raw = $3->nomes[0];
+                        Simbolo *s_arr = buscar_simbolo(nome_raw);
+                        if (s_arr && s_arr->is_ref) {
+                            $$.texto = fmt("do { (*%s) = realloc((*%s), ((*_len_%s) + 1) * sizeof(*(*%s))); (*%s)[(*_len_%s)++] = %s; } while(0)",
+                                           nome_raw, nome_raw, nome_raw, nome_raw, nome_raw, nome_raw, $3->c_itens[1]);
+                        } else {
+                            $$.texto = fmt("do { %s = realloc(%s, (_len_%s + 1) * sizeof(*%s)); %s[_len_%s++] = %s; } while(0)",
+                                           nome_raw, nome_raw, nome_raw, nome_raw, nome_raw, nome_raw, $3->c_itens[1]);
+                        }
+                    } else {
+                        $$.texto = strdup("");
+                    }
+                }
+            }
+            /* 4. Uso incorreto de create() sem nome de struct */
+            else if (strcmp($1, "create") == 0) {
+                erro_semantico(yylineno, "'create' espera o nome de uma struct declarada (ex: create(node)).");
+                $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                $$.texto = strdup("NULL");
+                $$.is_ref = 0;
+            }
+            /* 5. Demais subrotinas definidas pelo usuario */
             else {
+                $$.is_ref = 0;
+                $$.texto = fmt("%s(%s)", $1, $3->c_texto);
                 Simbolo *s = buscar_simbolo($1);
                 if (!s) {
                     erro_semantico(yylineno, "Subrotina '%s' nao declarada.", $1);
@@ -935,9 +1126,12 @@ lista_argumentos
                 int idx = $1->count++;
                 $1->tipos[idx] = $4.tipo;
                 $1->is_ref[idx] = 1;
-                $1->c_itens[idx] = fmt("&(%s)", $4.texto);
+                $1->nomes[idx] = strdup($4.texto);
+                $1->c_itens[idx] = $4.is_ref ? strdup($4.texto) : fmt("&(%s)", $4.texto);
                 char *novo_t = fmt("%s, ref %s", $1->texto, $4.texto);
-                char *novo_c = fmt("%s, &(%s)", $1->c_texto, $4.texto);
+                char *novo_c = ($4.tipo.dimensao > 0)
+                    ? fmt("%s, &(%s), &(_len_%s)", $1->c_texto, $4.texto, $4.texto)
+                    : fmt("%s, %s", $1->c_texto, $1->c_itens[idx]);
                 free($1->texto); free($1->c_texto);
                 $1->texto = novo_t;
                 $1->c_texto = novo_c;
@@ -952,10 +1146,13 @@ lista_argumentos
             ListaArgs *la = calloc(1, sizeof(ListaArgs));
             la->tipos[0] = $2.tipo;
             la->is_ref[0] = 1;
-            la->c_itens[0] = fmt("&(%s)", $2.texto);
+            la->nomes[0] = strdup($2.texto);
+            la->c_itens[0] = $2.is_ref ? strdup($2.texto) : fmt("&(%s)", $2.texto);
             la->count = 1;
             la->texto = fmt("ref %s", $2.texto);
-            la->c_texto = fmt("&(%s)", $2.texto);
+            la->c_texto = ($2.tipo.dimensao > 0)
+                ? fmt("&(%s), &(_len_%s)", $2.texto, $2.texto)
+                : strdup(la->c_itens[0]);
             free($2.texto);
             $$ = la;
         }
@@ -965,9 +1162,12 @@ lista_argumentos
                 int idx = $1->count++;
                 $1->tipos[idx] = $3.tipo;
                 $1->is_ref[idx] = 0;
+                $1->nomes[idx] = strdup($3.texto);
                 $1->c_itens[idx] = strdup($3.texto);
                 char *novo_t = fmt("%s, %s", $1->texto, $3.texto);
-                char *novo_c = fmt("%s, %s", $1->c_texto, $3.texto);
+                char *novo_c = ($3.tipo.dimensao > 0)
+                    ? fmt("%s, %s, _len_%s", $1->c_texto, $3.texto, $3.texto)
+                    : fmt("%s, %s", $1->c_texto, $3.texto);
                 free($1->texto); free($1->c_texto);
                 $1->texto = novo_t;
                 $1->c_texto = novo_c;
@@ -982,10 +1182,14 @@ lista_argumentos
             ListaArgs *la = calloc(1, sizeof(ListaArgs));
             la->tipos[0] = $1.tipo;
             la->is_ref[0] = 0;
+            la->nomes[0] = strdup($1.texto);
             la->c_itens[0] = strdup($1.texto);
             la->count = 1;
             la->texto = strdup($1.texto);
-            la->c_texto = $1.texto;
+            la->c_texto = ($1.tipo.dimensao > 0)
+                ? fmt("%s, _len_%s", $1.texto, $1.texto)
+                : strdup($1.texto);
+            free($1.texto);
             $$ = la;
         }
     ;
@@ -1012,6 +1216,7 @@ explogica
         {
             $$.texto = fmt("%s || %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_logico($1.tipo, $3.tipo, "||", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | exp_and { $$ = $1; }
@@ -1022,6 +1227,7 @@ exp_and
         {
             $$.texto = fmt("%s && %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_logico($1.tipo, $3.tipo, "&&", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | exp_not { $$ = $1; }
@@ -1032,6 +1238,7 @@ exp_not
         {
             $$.texto = fmt("!(%s)", $2.texto);
             $$.tipo = verificar_unario_logico($2.tipo, "!", yylineno);
+            $$.is_ref = 0;
             free($2.texto);
         }
     | exprelacional { $$ = $1; }
@@ -1041,7 +1248,15 @@ exprelacional
     : exparitimetica op_relacional exparitimetica
         {
             $$.texto = fmt("%s %s %s", $1.texto, $2, $3.texto);
-            $$.tipo = verificar_relacional($1.tipo, $3.tipo, $2, yylineno);
+            $$.is_ref = 0;
+            if (($1.is_ref || $3.is_ref) &&
+                (strcmp($2, "==") == 0 || strcmp($2, "!=") == 0) &&
+                ($1.tipo.base == TIPO_NULL || $3.tipo.base == TIPO_NULL ||
+                 ($1.is_ref && $3.is_ref && tipos_identicos($1.tipo, $3.tipo)))) {
+                $$.tipo = criar_tipo(TIPO_BOOL, 0);
+            } else {
+                $$.tipo = verificar_relacional($1.tipo, $3.tipo, $2, yylineno);
+            }
             free($1.texto); free($2); free($3.texto);
         }
     | exparitimetica { $$ = $1; }
@@ -1061,12 +1276,14 @@ exparitimetica
         {
             $$.texto = fmt("%s + %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "+", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | exparitimetica MINUS termo
         {
             $$.texto = fmt("%s - %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "-", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | termo { $$ = $1; }
@@ -1077,12 +1294,14 @@ termo
         {
             $$.texto = fmt("%s * %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "*", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | termo DIV unario
         {
             $$.texto = fmt("%s / %s", $1.texto, $3.texto);
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "/", yylineno);
+            $$.is_ref = 0;
             free($1.texto); free($3.texto);
         }
     | unario { $$ = $1; }
@@ -1093,12 +1312,14 @@ unario
         {
             $$.tipo = verificar_unario_aritmetico($2.tipo, "-", yylineno);
             $$.texto = fmt("-(%s)", $2.texto);
+            $$.is_ref = 0;
             free($2.texto);
         }
     | PLUS unario
         {
             $$.tipo = verificar_unario_aritmetico($2.tipo, "+", yylineno);
             $$.texto = fmt("+(%s)", $2.texto);
+            $$.is_ref = 0;
             free($2.texto);
         }
     | potencia { $$ = $1; }
@@ -1108,6 +1329,7 @@ potencia
     : fator POW unario
         {
             $$.tipo = verificar_binario_aritmetico($1.tipo, $3.tipo, "**", yylineno);
+            $$.is_ref = 0;
             if ($$.tipo.base == TIPO_INT) {
                 $$.texto = fmt("((int)pow(%s, %s))", $1.texto, $3.texto);
             } else {
@@ -1126,23 +1348,40 @@ l_value
                 erro_semantico(yylineno, "Variavel '%s' nao declarada.", $1);
                 $$.texto = $1;
                 $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                $$.is_ref = 0;
             } else if (s->is_func) {
                 erro_semantico(yylineno, "'%s' e uma subrotina e nao pode ser usada como variavel.", $1);
                 $$.texto = $1;
                 $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                $$.is_ref = 0;
             } else {
                 $$.tipo = s->tipo;
-                if (s->is_ref) {
-                    $$.texto = fmt("(*%s)", $1);
-                    free($1);
+                if (s->is_ref == 1) {
+                    if (s->tipo.base == TIPO_STRUCT && s->tipo.dimensao == 0) {
+                        /* Parametro 'ref' de struct ja e ponteiro (struct T*) */
+                        $$.texto = $1;
+                        $$.is_ref = 1;
+                    } else {
+                        /* Parametro 'ref' escalar/array: desreferencia automaticamente */
+                        $$.texto = fmt("(*%s)", $1);
+                        $$.is_ref = 0;
+                        free($1);
+                    }
+                } else if (s->is_ref == 2) {
+                    /* Variavel local declarada com 'ref tipo id' */
+                    $$.texto = $1;
+                    $$.is_ref = 1;
                 } else {
                     $$.texto = $1;
+                    $$.is_ref = 0;
                 }
             }
         }
     | l_value LBRACKET expressao RBRACKET
         {
-            $$.texto = fmt("%s[%s]", $1.texto, $3.texto);
+            if ($1.is_ref) $$.texto = fmt("(%s)[%s]", $1.texto, $3.texto);
+            else           $$.texto = fmt("%s[%s]", $1.texto, $3.texto);
+            $$.is_ref = 0;
             if ($3.tipo.base != TIPO_ERRO && ($3.tipo.base != TIPO_INT || $3.tipo.dimensao != 0)) {
                 erro_semantico(yylineno, "Indice de array deve ser 'int', recebeu '%s'.",
                                tipo_para_string($3.tipo));
@@ -1164,20 +1403,28 @@ l_value
         }
     | l_value DOT ID
         {
-            $$.texto = fmt("%s.%s", $1.texto, $3);
+            if ($1.is_ref) $$.texto = fmt("(%s)->%s", $1.texto, $3);
+            else           $$.texto = fmt("%s.%s", $1.texto, $3);
+
             if ($1.tipo.base == TIPO_ERRO) {
                 $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                $$.is_ref = 0;
             } else if ($1.tipo.base != TIPO_STRUCT || $1.tipo.dimensao != 0) {
                 erro_semantico(yylineno, "Acesso ao campo '%s' em '%s', que nao e uma struct.",
                                $3, tipo_para_string($1.tipo));
                 $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                $$.is_ref = 0;
             } else {
-                Tipo tc = buscar_campo_struct($1.tipo.nome_struct, $3);
-                if (tc.base == TIPO_ERRO) {
+                CampoStruct *cf = buscar_campo_struct_info($1.tipo.nome_struct, $3);
+                if (!cf) {
                     erro_semantico(yylineno, "Struct '%s' nao possui o campo '%s'.",
                                    $1.tipo.nome_struct, $3);
+                    $$.tipo = criar_tipo(TIPO_ERRO, 0);
+                    $$.is_ref = 0;
+                } else {
+                    $$.tipo = cf->tipo;
+                    $$.is_ref = cf->is_ref;
                 }
-                $$.tipo = tc;
             }
             free($1.texto); free($3);
         }
@@ -1186,13 +1433,14 @@ l_value
 fator
     : chamadafuncao           { $$ = $1; }
     | l_value                 { $$ = $1; }
-    | INT_NUM                 { $$.texto = fmt("%d", $1); $$.tipo = criar_tipo(TIPO_INT, 0); }
-    | REAL_NUM                { $$.texto = fmt("%g", $1); $$.tipo = criar_tipo(TIPO_REAL, 0); }
-    | STRING_LITERAL          { $$.texto = $1; $$.tipo = criar_tipo(TIPO_STRING, 0); }
-    | TRUE                    { $$.texto = strdup("true"); $$.tipo = criar_tipo(TIPO_BOOL, 0); }
-    | FALSE                   { $$.texto = strdup("false"); $$.tipo = criar_tipo(TIPO_BOOL, 0); }
-    | arrayLiteral            { $$ = $1; }
-    | LPAREN expressao RPAREN { $$.texto = fmt("(%s)", $2.texto); $$.tipo = $2.tipo; free($2.texto); }
+    | INT_NUM                 { $$.texto = fmt("%d", $1); $$.tipo = criar_tipo(TIPO_INT, 0); $$.is_ref = 0; }
+    | REAL_NUM                { $$.texto = fmt("%g", $1); $$.tipo = criar_tipo(TIPO_REAL, 0); $$.is_ref = 0; }
+    | STRING_LITERAL          { $$.texto = $1; $$.tipo = criar_tipo(TIPO_STRING, 0); $$.is_ref = 0; }
+    | TRUE                    { $$.texto = strdup("true"); $$.tipo = criar_tipo(TIPO_BOOL, 0); $$.is_ref = 0; }
+    | FALSE                   { $$.texto = strdup("false"); $$.tipo = criar_tipo(TIPO_BOOL, 0); $$.is_ref = 0; }
+    | NULL_VAL                { $$.texto = strdup("NULL"); $$.tipo = criar_tipo(TIPO_NULL, 0); $$.is_ref = 1; }
+    | arrayLiteral            { $$ = $1; $$.is_ref = 0; }
+    | LPAREN expressao RPAREN { $$.texto = fmt("(%s)", $2.texto); $$.tipo = $2.tipo; $$.is_ref = $2.is_ref; free($2.texto); }
     ;
 
 arrayLiteral

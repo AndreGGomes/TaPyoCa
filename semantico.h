@@ -8,7 +8,8 @@ typedef enum {
     TIPO_REAL,
     TIPO_STRING,
     TIPO_BOOL,
-    TIPO_STRUCT
+    TIPO_STRUCT,
+    TIPO_NULL
 } TipoBase;
 
 typedef struct {
@@ -21,12 +22,14 @@ typedef struct {
 typedef struct {
     char *texto;
     Tipo tipo;
+    int is_ref;
 } ExprInfo;
 
 /* Representação de um campo dentro de uma struct */
 typedef struct {
     char nome[64];
     Tipo tipo;
+    int is_ref;
 } CampoStruct;
 
 /* Definição de um tipo struct na tabela global de structs */
@@ -65,8 +68,9 @@ Simbolo* buscar_simbolo(const char *nome);
 /* Inserção e Busca de Structs e Campos */
 StructDef* inserir_struct(const char *nome, int linha);
 StructDef* buscar_struct(const char *nome);
-int adicionar_campo_struct(StructDef *st, const char *nome_campo, Tipo tipo_campo, int linha);
+int adicionar_campo_struct(StructDef *st, const char *nome_campo, Tipo tipo_campo, int is_ref, int linha);
 Tipo buscar_campo_struct(const char *nome_struct, const char *nome_campo);
+CampoStruct* buscar_campo_struct_info(const char *nome_struct, const char *nome_campo);
 
 /* Utilitários de Tipo e Verificações */
 Tipo criar_tipo(TipoBase base, int dimensao);

@@ -140,7 +140,7 @@ StructDef* inserir_struct(const char *nome, int linha) {
     return st;
 }
 
-int adicionar_campo_struct(StructDef *st, const char *nome_campo, Tipo tipo_campo, int linha) {
+int adicionar_campo_struct(StructDef *st, const char *nome_campo, Tipo tipo_campo, int is_ref, int linha) {
     if (!st) return 0;
     for (int i = 0; i < st->num_campos; i++) {
         if (strcmp(st->campos[i].nome, nome_campo) == 0) {
@@ -155,19 +155,26 @@ int adicionar_campo_struct(StructDef *st, const char *nome_campo, Tipo tipo_camp
     strncpy(st->campos[st->num_campos].nome, nome_campo, 63);
     st->campos[st->num_campos].nome[63] = '\0';
     st->campos[st->num_campos].tipo = tipo_campo;
+    st->campos[st->num_campos].is_ref = is_ref;
     st->num_campos++;
     return 1;
 }
 
-Tipo buscar_campo_struct(const char *nome_struct, const char *nome_campo) {
+CampoStruct* buscar_campo_struct_info(const char *nome_struct, const char *nome_campo) {
     StructDef *st = buscar_struct(nome_struct);
-    if (!st) return criar_tipo(TIPO_ERRO, 0);
+    if (!st) return NULL;
     for (int i = 0; i < st->num_campos; i++) {
         if (strcmp(st->campos[i].nome, nome_campo) == 0) {
-            return st->campos[i].tipo;
+            return &st->campos[i];
         }
     }
-    return criar_tipo(TIPO_ERRO, 0);
+    return NULL;
+}
+
+Tipo buscar_campo_struct(const char *nome_struct, const char *nome_campo) {
+    CampoStruct *cf = buscar_campo_struct_info(nome_struct, nome_campo);
+    if (!cf) return criar_tipo(TIPO_ERRO, 0);
+    return cf->tipo;
 }
 
 /* ---------- Utilitarios de Tipo e Verificacoes ---------- */
@@ -225,6 +232,7 @@ const char* tipo_para_string(Tipo t) {
         case TIPO_STRING: base_str = "string"; break;
         case TIPO_BOOL:   base_str = "bool"; break;
         case TIPO_STRUCT: base_str = t.nome_struct; break;
+        case TIPO_NULL:   base_str = "null"; break;
         default: break;
     }
     strcpy(buf, base_str);
