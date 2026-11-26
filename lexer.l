@@ -90,6 +90,7 @@ REAL_PAT {DIGIT}+"."{DIGIT}+
 "endstruct" { return ENDSTRUCT; }
 "true"      { return TRUE; }
 "false"     { return FALSE; }
+"null"      { return NULL_VAL; }
 
  /* Tipos de Dados */
 "int"      { return INT; }

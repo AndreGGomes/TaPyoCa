@@ -1,4 +1,4 @@
-struct rational_t
+struct rational_t # TODO: erro deveria dar como tipo nao declarado ao chamar a função criar_racional
     int numerador
     int denominador
 endstruct
@@ -21,7 +21,7 @@ endsub
 
 # A) Cria e simplifica a fracao a/b (com b != 0 e denominador positivo)
 sub rational_t criar_racional(int a, int b)
-    rational_t r
+    rational_t r # TODO: erro deveria ser tipo nao declarado
     if (b == 0)
         print("Erro: denominador nao pode ser zero.")
         r.numerador = 0
