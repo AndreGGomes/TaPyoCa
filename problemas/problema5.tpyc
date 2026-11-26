@@ -1,0 +1,31 @@
+sub mdc(int n, int m, ref int r)
+    int resto_mn = m - (m / n) * n
+    int resto_nm = n - (n / m) * m
+
+    if (resto_mn == 0)
+        r = n
+    else
+        if (resto_nm == 0)
+            r = m
+        else
+            if (m > n)
+                mdc(n, resto_mn, ref r)
+            else
+                mdc(m, resto_nm, ref r)
+            endif
+        endif
+    endif
+endsub
+
+main()
+    int n = read()
+    int m = read()
+    int resultado = 0
+
+    if (n > 0 && m > 0)
+        mdc(n, m, ref resultado)
+        print("MDC:", resultado)
+    else
+        print("Erro: n e m devem ser naturais estritamente positivos.")
+    endif
+endmain
