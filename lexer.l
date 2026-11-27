@@ -9,7 +9,6 @@
 int indent_stack[MAX_INDENT] = {0};
 int indent_top = 0;
 int pending_dedents = 0;
-
 int handle_indent(int current_indent);
 
 #define YY_DECL int _yylex(void)

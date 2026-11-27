@@ -1,0 +1,2600 @@
+Grammar
+
+    0 $accept: programa $end
+
+    1 programa: declaracoes_globais
+
+    2 declaracoes_globais: declaracoes_globais declaracao
+    3                    | declaracao
+
+    4 declaracao: subrotina
+    5           | main_block
+    6           | declaracao_struct
+
+    7 $@1: ε
+
+    8 declaracao_struct: STRUCT ID $@1 NEWLINE corpo_struct ENDSTRUCT NEWLINE
+
+    9 corpo_struct: INDENT campos DEDENT
+   10             | ε
+
+   11 campos: campos campo NEWLINE
+   12       | ε
+
+   13 campo: REF tipo ID
+   14      | tipo ID
+
+   15 $@2: ε
+
+   16 main_block: MAIN LPAREN RPAREN $@2 NEWLINE corpo_bloco ENDMAIN NEWLINE
+
+   17 $@3: ε
+
+   18 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+   19 tipo_opt: tipo
+   20         | ε
+
+   21 parametros_opt: lista_parametros
+   22               | ε
+
+   23 lista_parametros: lista_parametros COMMA REF tipo ID
+   24                 | REF tipo ID
+   25                 | lista_parametros COMMA tipo ID
+   26                 | tipo ID
+
+   27 comandos: comandos comando NEWLINE
+   28         | ε
+
+   29 corpo_bloco: INDENT comandos DEDENT
+   30            | ε
+
+   31 comando: declaracaovar
+   32        | atribuicao
+   33        | comandoif
+   34        | comandowhile
+   35        | comandobreak
+   36        | chamadafuncao
+   37        | retorno
+   38        | comandoprint
+
+   39 comandoprint: PRINT LPAREN argumentos_opt RPAREN
+
+   40 declaracaovar: tipo ID ASSIGN READ LPAREN RPAREN
+   41              | tipo ID ASSIGN expressao
+   42              | tipo ID
+   43              | REF tipo ID ASSIGN REF l_value
+   44              | REF tipo ID ASSIGN expressao
+   45              | REF tipo ID
+
+   46 atribuicao: l_value ASSIGN READ LPAREN RPAREN
+   47           | l_value ASSIGN REF l_value
+   48           | l_value ASSIGN expressao
+
+   49 $@4: ε
+
+   50 comandowhile: WHILE LPAREN expressao RPAREN $@4 NEWLINE corpo_bloco ENDWHILE
+
+   51 $@5: ε
+
+   52 comandoif: IF LPAREN expressao RPAREN $@5 NEWLINE corpo_bloco cauda_if
+
+   53 cauda_if: ENDIF
+
+   54 $@6: ε
+
+   55 cauda_if: ELSE $@6 NEWLINE corpo_bloco ENDIF
+
+   56 comandobreak: BREAK
+
+   57 retorno: RETURN expressao
+
+   58 chamadafuncao: ID LPAREN STRUCT_ID RPAREN
+   59              | ID LPAREN argumentos_opt RPAREN
+
+   60 argumentos_opt: lista_argumentos
+   61               | ε
+
+   62 lista_argumentos: lista_argumentos COMMA REF l_value
+   63                 | REF l_value
+   64                 | lista_argumentos COMMA expressao
+   65                 | expressao
+
+   66 tipo: INT
+   67     | REAL
+   68     | STRING
+   69     | BOOL
+   70     | STRUCT_ID
+   71     | tipo LBRACKET RBRACKET
+
+   72 expressao: explogica
+
+   73 explogica: explogica OR exp_and
+   74          | exp_and
+
+   75 exp_and: exp_and AND exp_not
+   76        | exp_not
+
+   77 exp_not: NOT exp_not
+   78        | exprelacional
+
+   79 exprelacional: exparitimetica op_relacional exparitimetica
+   80              | exparitimetica
+
+   81 op_relacional: LT
+   82              | LEQ
+   83              | GT
+   84              | GEQ
+   85              | EQ
+   86              | NEQ
+
+   87 exparitimetica: exparitimetica PLUS termo
+   88               | exparitimetica MINUS termo
+   89               | termo
+
+   90 termo: termo MUL unario
+   91      | termo DIV unario
+   92      | unario
+
+   93 unario: MINUS unario
+   94       | PLUS unario
+   95       | potencia
+
+   96 potencia: fator POW unario
+   97         | fator
+
+   98 l_value: ID
+   99        | l_value LBRACKET expressao RBRACKET
+  100        | l_value DOT ID
+
+  101 fator: chamadafuncao
+  102      | l_value
+  103      | INT_NUM
+  104      | REAL_NUM
+  105      | STRING_LITERAL
+  106      | TRUE
+  107      | FALSE
+  108      | NULL_VAL
+  109      | arrayLiteral
+  110      | LPAREN expressao RPAREN
+
+  111 arrayLiteral: LBRACKET array_elements_opt RBRACKET
+
+  112 array_elements_opt: lista_argumentos
+  113                   | ε
+
+
+Terminals, with rules where they appear
+
+    $end (0) 0
+    error (256)
+    MAIN (258) 16
+    LPAREN (259) 16 18 39 40 46 50 52 58 59 110
+    RPAREN (260) 16 18 39 40 46 50 52 58 59 110
+    NEWLINE (261) 8 11 16 18 27 50 52 55
+    INDENT (262) 9 29
+    DEDENT (263) 9 29
+    ENDMAIN (264) 16
+    SUB (265) 18
+    ENDSUB (266) 18
+    COMMA (267) 23 25 62 64
+    ASSIGN (268) 40 41 43 44 46 47 48
+    RETURN (269) 57
+    IF (270) 52
+    ELSE (271) 55
+    ENDIF (272) 53 55
+    WHILE (273) 50
+    ENDWHILE (274) 50
+    INT (275) 66
+    LBRACKET (276) 71 99 111
+    RBRACKET (277) 71 99 111
+    STRING (278) 68
+    REAL (279) 67
+    BOOL (280) 69
+    TRUE (281) 106
+    FALSE (282) 107
+    NULL_VAL (283) 108
+    LT (284) 81
+    LEQ (285) 82
+    GT (286) 83
+    GEQ (287) 84
+    EQ (288) 85
+    NEQ (289) 86
+    AND (290) 75
+    OR (291) 73
+    NOT (292) 77
+    PLUS (293) 87 94
+    MINUS (294) 88 93
+    MUL (295) 90
+    DIV (296) 91
+    POW (297) 96
+    PRINT (298) 39
+    READ (299) 40 46
+    REF (300) 13 23 24 43 44 45 47 62 63
+    STRUCT (301) 8
+    ENDSTRUCT (302) 8
+    DOT (303) 100
+    BREAK (304) 56
+    INT_NUM <ival> (305) 103
+    REAL_NUM <fval> (306) 104
+    ID <sval> (307) 8 13 14 18 23 24 25 26 40 41 42 43 44 45 58 59 98 100
+    STRUCT_ID <sval> (308) 58 70
+    STRING_LITERAL <sval> (309) 105
+
+
+Nonterminals, with rules where they appear
+
+    $accept (55)
+        on left: 0
+    programa (56)
+        on left: 1
+        on right: 0
+    declaracoes_globais (57)
+        on left: 2 3
+        on right: 1 2
+    declaracao (58)
+        on left: 4 5 6
+        on right: 2 3
+    declaracao_struct (59)
+        on left: 8
+        on right: 6
+    $@1 (60)
+        on left: 7
+        on right: 8
+    corpo_struct (61)
+        on left: 9 10
+        on right: 8
+    campos (62)
+        on left: 11 12
+        on right: 9 11
+    campo (63)
+        on left: 13 14
+        on right: 11
+    main_block (64)
+        on left: 16
+        on right: 5
+    $@2 (65)
+        on left: 15
+        on right: 16
+    subrotina (66)
+        on left: 18
+        on right: 4
+    $@3 (67)
+        on left: 17
+        on right: 18
+    tipo_opt <sval> (68)
+        on left: 19 20
+        on right: 18
+    parametros_opt <plist> (69)
+        on left: 21 22
+        on right: 18
+    lista_parametros <plist> (70)
+        on left: 23 24 25 26
+        on right: 21 23 25
+    comandos (71)
+        on left: 27 28
+        on right: 27 29
+    corpo_bloco (72)
+        on left: 29 30
+        on right: 16 18 50 52 55
+    comando (73)
+        on left: 31 32 33 34 35 36 37 38
+        on right: 27
+    comandoprint (74)
+        on left: 39
+        on right: 38
+    declaracaovar (75)
+        on left: 40 41 42 43 44 45
+        on right: 31
+    atribuicao (76)
+        on left: 46 47 48
+        on right: 32
+    comandowhile (77)
+        on left: 50
+        on right: 34
+    $@4 (78)
+        on left: 49
+        on right: 50
+    comandoif (79)
+        on left: 52
+        on right: 33
+    $@5 (80)
+        on left: 51
+        on right: 52
+    cauda_if (81)
+        on left: 53 55
+        on right: 52
+    $@6 (82)
+        on left: 54
+        on right: 55
+    comandobreak (83)
+        on left: 56
+        on right: 35
+    retorno (84)
+        on left: 57
+        on right: 37
+    chamadafuncao <expr> (85)
+        on left: 58 59
+        on right: 36 101
+    argumentos_opt <alist> (86)
+        on left: 60 61
+        on right: 39 59
+    lista_argumentos <alist> (87)
+        on left: 62 63 64 65
+        on right: 60 62 64 112
+    tipo <sval> (88)
+        on left: 66 67 68 69 70 71
+        on right: 13 14 19 23 24 25 26 40 41 42 43 44 45 71
+    expressao <expr> (89)
+        on left: 72
+        on right: 41 44 48 50 52 57 64 65 99 110
+    explogica <expr> (90)
+        on left: 73 74
+        on right: 72 73
+    exp_and <expr> (91)
+        on left: 75 76
+        on right: 73 74 75
+    exp_not <expr> (92)
+        on left: 77 78
+        on right: 75 76 77
+    exprelacional <expr> (93)
+        on left: 79 80
+        on right: 78
+    op_relacional <sval> (94)
+        on left: 81 82 83 84 85 86
+        on right: 79
+    exparitimetica <expr> (95)
+        on left: 87 88 89
+        on right: 79 80 87 88
+    termo <expr> (96)
+        on left: 90 91 92
+        on right: 87 88 89 90 91
+    unario <expr> (97)
+        on left: 93 94 95
+        on right: 90 91 92 93 94 96
+    potencia <expr> (98)
+        on left: 96 97
+        on right: 95
+    l_value <expr> (99)
+        on left: 98 99 100
+        on right: 43 46 47 48 62 63 99 100 102
+    fator <expr> (100)
+        on left: 101 102 103 104 105 106 107 108 109 110
+        on right: 96 97
+    arrayLiteral <expr> (101)
+        on left: 111
+        on right: 109
+    array_elements_opt <alist> (102)
+        on left: 112 113
+        on right: 111
+
+
+State 0
+
+    0 $accept: • programa $end
+
+    MAIN    shift, and go to state 1
+    SUB     shift, and go to state 2
+    STRUCT  shift, and go to state 3
+
+    programa             go to state 4
+    declaracoes_globais  go to state 5
+    declaracao           go to state 6
+    declaracao_struct    go to state 7
+    main_block           go to state 8
+    subrotina            go to state 9
+
+
+State 1
+
+   16 main_block: MAIN • LPAREN RPAREN $@2 NEWLINE corpo_bloco ENDMAIN NEWLINE
+
+    LPAREN  shift, and go to state 10
+
+
+State 2
+
+   18 subrotina: SUB • tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    INT        shift, and go to state 11
+    STRING     shift, and go to state 12
+    REAL       shift, and go to state 13
+    BOOL       shift, and go to state 14
+    STRUCT_ID  shift, and go to state 15
+
+    $default  reduce using rule 20 (tipo_opt)
+
+    tipo_opt  go to state 16
+    tipo      go to state 17
+
+
+State 3
+
+    8 declaracao_struct: STRUCT • ID $@1 NEWLINE corpo_struct ENDSTRUCT NEWLINE
+
+    ID  shift, and go to state 18
+
+
+State 4
+
+    0 $accept: programa • $end
+
+    $end  shift, and go to state 19
+
+
+State 5
+
+    1 programa: declaracoes_globais •
+    2 declaracoes_globais: declaracoes_globais • declaracao
+
+    MAIN    shift, and go to state 1
+    SUB     shift, and go to state 2
+    STRUCT  shift, and go to state 3
+
+    $default  reduce using rule 1 (programa)
+
+    declaracao         go to state 20
+    declaracao_struct  go to state 7
+    main_block         go to state 8
+    subrotina          go to state 9
+
+
+State 6
+
+    3 declaracoes_globais: declaracao •
+
+    $default  reduce using rule 3 (declaracoes_globais)
+
+
+State 7
+
+    6 declaracao: declaracao_struct •
+
+    $default  reduce using rule 6 (declaracao)
+
+
+State 8
+
+    5 declaracao: main_block •
+
+    $default  reduce using rule 5 (declaracao)
+
+
+State 9
+
+    4 declaracao: subrotina •
+
+    $default  reduce using rule 4 (declaracao)
+
+
+State 10
+
+   16 main_block: MAIN LPAREN • RPAREN $@2 NEWLINE corpo_bloco ENDMAIN NEWLINE
+
+    RPAREN  shift, and go to state 21
+
+
+State 11
+
+   66 tipo: INT •
+
+    $default  reduce using rule 66 (tipo)
+
+
+State 12
+
+   68 tipo: STRING •
+
+    $default  reduce using rule 68 (tipo)
+
+
+State 13
+
+   67 tipo: REAL •
+
+    $default  reduce using rule 67 (tipo)
+
+
+State 14
+
+   69 tipo: BOOL •
+
+    $default  reduce using rule 69 (tipo)
+
+
+State 15
+
+   70 tipo: STRUCT_ID •
+
+    $default  reduce using rule 70 (tipo)
+
+
+State 16
+
+   18 subrotina: SUB tipo_opt • ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    ID  shift, and go to state 22
+
+
+State 17
+
+   19 tipo_opt: tipo •
+   71 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  shift, and go to state 23
+
+    $default  reduce using rule 19 (tipo_opt)
+
+
+State 18
+
+    8 declaracao_struct: STRUCT ID • $@1 NEWLINE corpo_struct ENDSTRUCT NEWLINE
+
+    $default  reduce using rule 7 ($@1)
+
+    $@1  go to state 24
+
+
+State 19
+
+    0 $accept: programa $end •
+
+    $default  accept
+
+
+State 20
+
+    2 declaracoes_globais: declaracoes_globais declaracao •
+
+    $default  reduce using rule 2 (declaracoes_globais)
+
+
+State 21
+
+   16 main_block: MAIN LPAREN RPAREN • $@2 NEWLINE corpo_bloco ENDMAIN NEWLINE
+
+    $default  reduce using rule 15 ($@2)
+
+    $@2  go to state 25
+
+
+State 22
+
+   18 subrotina: SUB tipo_opt ID • LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    LPAREN  shift, and go to state 26
+
+
+State 23
+
+   71 tipo: tipo LBRACKET • RBRACKET
+
+    RBRACKET  shift, and go to state 27
+
+
+State 24
+
+    8 declaracao_struct: STRUCT ID $@1 • NEWLINE corpo_struct ENDSTRUCT NEWLINE
+
+    NEWLINE  shift, and go to state 28
+
+
+State 25
+
+   16 main_block: MAIN LPAREN RPAREN $@2 • NEWLINE corpo_bloco ENDMAIN NEWLINE
+
+    NEWLINE  shift, and go to state 29
+
+
+State 26
+
+   18 subrotina: SUB tipo_opt ID LPAREN • parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    INT        shift, and go to state 11
+    STRING     shift, and go to state 12
+    REAL       shift, and go to state 13
+    BOOL       shift, and go to state 14
+    REF        shift, and go to state 30
+    STRUCT_ID  shift, and go to state 15
+
+    $default  reduce using rule 22 (parametros_opt)
+
+    parametros_opt    go to state 31
+    lista_parametros  go to state 32
+    tipo              go to state 33
+
+
+State 27
+
+   71 tipo: tipo LBRACKET RBRACKET •
+
+    $default  reduce using rule 71 (tipo)
+
+
+State 28
+
+    8 declaracao_struct: STRUCT ID $@1 NEWLINE • corpo_struct ENDSTRUCT NEWLINE
+
+    INDENT  shift, and go to state 34
+
+    $default  reduce using rule 10 (corpo_struct)
+
+    corpo_struct  go to state 35
+
+
+State 29
+
+   16 main_block: MAIN LPAREN RPAREN $@2 NEWLINE • corpo_bloco ENDMAIN NEWLINE
+
+    INDENT  shift, and go to state 36
+
+    $default  reduce using rule 30 (corpo_bloco)
+
+    corpo_bloco  go to state 37
+
+
+State 30
+
+   24 lista_parametros: REF • tipo ID
+
+    INT        shift, and go to state 11
+    STRING     shift, and go to state 12
+    REAL       shift, and go to state 13
+    BOOL       shift, and go to state 14
+    STRUCT_ID  shift, and go to state 15
+
+    tipo  go to state 38
+
+
+State 31
+
+   18 subrotina: SUB tipo_opt ID LPAREN parametros_opt • RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    RPAREN  shift, and go to state 39
+
+
+State 32
+
+   21 parametros_opt: lista_parametros •
+   23 lista_parametros: lista_parametros • COMMA REF tipo ID
+   25                 | lista_parametros • COMMA tipo ID
+
+    COMMA  shift, and go to state 40
+
+    $default  reduce using rule 21 (parametros_opt)
+
+
+State 33
+
+   26 lista_parametros: tipo • ID
+   71 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  shift, and go to state 23
+    ID        shift, and go to state 41
+
+
+State 34
+
+    9 corpo_struct: INDENT • campos DEDENT
+
+    $default  reduce using rule 12 (campos)
+
+    campos  go to state 42
+
+
+State 35
+
+    8 declaracao_struct: STRUCT ID $@1 NEWLINE corpo_struct • ENDSTRUCT NEWLINE
+
+    ENDSTRUCT  shift, and go to state 43
+
+
+State 36
+
+   29 corpo_bloco: INDENT • comandos DEDENT
+
+    $default  reduce using rule 28 (comandos)
+
+    comandos  go to state 44
+
+
+State 37
+
+   16 main_block: MAIN LPAREN RPAREN $@2 NEWLINE corpo_bloco • ENDMAIN NEWLINE
+
+    ENDMAIN  shift, and go to state 45
+
+
+State 38
+
+   24 lista_parametros: REF tipo • ID
+   71 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  shift, and go to state 23
+    ID        shift, and go to state 46
+
+
+State 39
+
+   18 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN • $@3 NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    $default  reduce using rule 17 ($@3)
+
+    $@3  go to state 47
+
+
+State 40
+
+   23 lista_parametros: lista_parametros COMMA • REF tipo ID
+   25                 | lista_parametros COMMA • tipo ID
+
+    INT        shift, and go to state 11
+    STRING     shift, and go to state 12
+    REAL       shift, and go to state 13
+    BOOL       shift, and go to state 14
+    REF        shift, and go to state 48
+    STRUCT_ID  shift, and go to state 15
+
+    tipo  go to state 49
+
+
+State 41
+
+   26 lista_parametros: tipo ID •
+
+    $default  reduce using rule 26 (lista_parametros)
+
+
+State 42
+
+    9 corpo_struct: INDENT campos • DEDENT
+   11 campos: campos • campo NEWLINE
+
+    DEDENT     shift, and go to state 50
+    INT        shift, and go to state 11
+    STRING     shift, and go to state 12
+    REAL       shift, and go to state 13
+    BOOL       shift, and go to state 14
+    REF        shift, and go to state 51
+    STRUCT_ID  shift, and go to state 15
+
+    campo  go to state 52
+    tipo   go to state 53
+
+
+State 43
+
+    8 declaracao_struct: STRUCT ID $@1 NEWLINE corpo_struct ENDSTRUCT • NEWLINE
+
+    NEWLINE  shift, and go to state 54
+
+
+State 44
+
+   27 comandos: comandos • comando NEWLINE
+   29 corpo_bloco: INDENT comandos • DEDENT
+
+    DEDENT     shift, and go to state 55
+    RETURN     shift, and go to state 56
+    IF         shift, and go to state 57
+    WHILE      shift, and go to state 58
+    INT        shift, and go to state 11
+    STRING     shift, and go to state 12
+    REAL       shift, and go to state 13
+    BOOL       shift, and go to state 14
+    PRINT      shift, and go to state 59
+    REF        shift, and go to state 60
+    BREAK      shift, and go to state 61
+    ID         shift, and go to state 62
+    STRUCT_ID  shift, and go to state 15
+
+    comando        go to state 63
+    comandoprint   go to state 64
+    declaracaovar  go to state 65
+    atribuicao     go to state 66
+    comandowhile   go to state 67
+    comandoif      go to state 68
+    comandobreak   go to state 69
+    retorno        go to state 70
+    chamadafuncao  go to state 71
+    tipo           go to state 72
+    l_value        go to state 73
+
+
+State 45
+
+   16 main_block: MAIN LPAREN RPAREN $@2 NEWLINE corpo_bloco ENDMAIN • NEWLINE
+
+    NEWLINE  shift, and go to state 74
+
+
+State 46
+
+   24 lista_parametros: REF tipo ID •
+
+    $default  reduce using rule 24 (lista_parametros)
+
+
+State 47
+
+   18 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 • NEWLINE corpo_bloco ENDSUB NEWLINE
+
+    NEWLINE  shift, and go to state 75
+
+
+State 48
+
+   23 lista_parametros: lista_parametros COMMA REF • tipo ID
+
+    INT        shift, and go to state 11
+    STRING     shift, and go to state 12
+    REAL       shift, and go to state 13
+    BOOL       shift, and go to state 14
+    STRUCT_ID  shift, and go to state 15
+
+    tipo  go to state 76
+
+
+State 49
+
+   25 lista_parametros: lista_parametros COMMA tipo • ID
+   71 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  shift, and go to state 23
+    ID        shift, and go to state 77
+
+
+State 50
+
+    9 corpo_struct: INDENT campos DEDENT •
+
+    $default  reduce using rule 9 (corpo_struct)
+
+
+State 51
+
+   13 campo: REF • tipo ID
+
+    INT        shift, and go to state 11
+    STRING     shift, and go to state 12
+    REAL       shift, and go to state 13
+    BOOL       shift, and go to state 14
+    STRUCT_ID  shift, and go to state 15
+
+    tipo  go to state 78
+
+
+State 52
+
+   11 campos: campos campo • NEWLINE
+
+    NEWLINE  shift, and go to state 79
+
+
+State 53
+
+   14 campo: tipo • ID
+   71 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  shift, and go to state 23
+    ID        shift, and go to state 80
+
+
+State 54
+
+    8 declaracao_struct: STRUCT ID $@1 NEWLINE corpo_struct ENDSTRUCT NEWLINE •
+
+    $default  reduce using rule 8 (declaracao_struct)
+
+
+State 55
+
+   29 corpo_bloco: INDENT comandos DEDENT •
+
+    $default  reduce using rule 29 (corpo_bloco)
+
+
+State 56
+
+   57 retorno: RETURN • expressao
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    expressao       go to state 93
+    explogica       go to state 94
+    exp_and         go to state 95
+    exp_not         go to state 96
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 57
+
+   52 comandoif: IF • LPAREN expressao RPAREN $@5 NEWLINE corpo_bloco cauda_if
+
+    LPAREN  shift, and go to state 105
+
+
+State 58
+
+   50 comandowhile: WHILE • LPAREN expressao RPAREN $@4 NEWLINE corpo_bloco ENDWHILE
+
+    LPAREN  shift, and go to state 106
+
+
+State 59
+
+   39 comandoprint: PRINT • LPAREN argumentos_opt RPAREN
+
+    LPAREN  shift, and go to state 107
+
+
+State 60
+
+   43 declaracaovar: REF • tipo ID ASSIGN REF l_value
+   44              | REF • tipo ID ASSIGN expressao
+   45              | REF • tipo ID
+
+    INT        shift, and go to state 11
+    STRING     shift, and go to state 12
+    REAL       shift, and go to state 13
+    BOOL       shift, and go to state 14
+    STRUCT_ID  shift, and go to state 15
+
+    tipo  go to state 108
+
+
+State 61
+
+   56 comandobreak: BREAK •
+
+    $default  reduce using rule 56 (comandobreak)
+
+
+State 62
+
+   58 chamadafuncao: ID • LPAREN STRUCT_ID RPAREN
+   59              | ID • LPAREN argumentos_opt RPAREN
+   98 l_value: ID •
+
+    LPAREN  shift, and go to state 109
+
+    $default  reduce using rule 98 (l_value)
+
+
+State 63
+
+   27 comandos: comandos comando • NEWLINE
+
+    NEWLINE  shift, and go to state 110
+
+
+State 64
+
+   38 comando: comandoprint •
+
+    $default  reduce using rule 38 (comando)
+
+
+State 65
+
+   31 comando: declaracaovar •
+
+    $default  reduce using rule 31 (comando)
+
+
+State 66
+
+   32 comando: atribuicao •
+
+    $default  reduce using rule 32 (comando)
+
+
+State 67
+
+   34 comando: comandowhile •
+
+    $default  reduce using rule 34 (comando)
+
+
+State 68
+
+   33 comando: comandoif •
+
+    $default  reduce using rule 33 (comando)
+
+
+State 69
+
+   35 comando: comandobreak •
+
+    $default  reduce using rule 35 (comando)
+
+
+State 70
+
+   37 comando: retorno •
+
+    $default  reduce using rule 37 (comando)
+
+
+State 71
+
+   36 comando: chamadafuncao •
+
+    $default  reduce using rule 36 (comando)
+
+
+State 72
+
+   40 declaracaovar: tipo • ID ASSIGN READ LPAREN RPAREN
+   41              | tipo • ID ASSIGN expressao
+   42              | tipo • ID
+   71 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  shift, and go to state 23
+    ID        shift, and go to state 111
+
+
+State 73
+
+   46 atribuicao: l_value • ASSIGN READ LPAREN RPAREN
+   47           | l_value • ASSIGN REF l_value
+   48           | l_value • ASSIGN expressao
+   99 l_value: l_value • LBRACKET expressao RBRACKET
+  100        | l_value • DOT ID
+
+    ASSIGN    shift, and go to state 112
+    LBRACKET  shift, and go to state 113
+    DOT       shift, and go to state 114
+
+
+State 74
+
+   16 main_block: MAIN LPAREN RPAREN $@2 NEWLINE corpo_bloco ENDMAIN NEWLINE •
+
+    $default  reduce using rule 16 (main_block)
+
+
+State 75
+
+   18 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE • corpo_bloco ENDSUB NEWLINE
+
+    INDENT  shift, and go to state 36
+
+    $default  reduce using rule 30 (corpo_bloco)
+
+    corpo_bloco  go to state 115
+
+
+State 76
+
+   23 lista_parametros: lista_parametros COMMA REF tipo • ID
+   71 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  shift, and go to state 23
+    ID        shift, and go to state 116
+
+
+State 77
+
+   25 lista_parametros: lista_parametros COMMA tipo ID •
+
+    $default  reduce using rule 25 (lista_parametros)
+
+
+State 78
+
+   13 campo: REF tipo • ID
+   71 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  shift, and go to state 23
+    ID        shift, and go to state 117
+
+
+State 79
+
+   11 campos: campos campo NEWLINE •
+
+    $default  reduce using rule 11 (campos)
+
+
+State 80
+
+   14 campo: tipo ID •
+
+    $default  reduce using rule 14 (campo)
+
+
+State 81
+
+  110 fator: LPAREN • expressao RPAREN
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    expressao       go to state 118
+    explogica       go to state 94
+    exp_and         go to state 95
+    exp_not         go to state 96
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 82
+
+  111 arrayLiteral: LBRACKET • array_elements_opt RBRACKET
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    REF             shift, and go to state 119
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    $default  reduce using rule 113 (array_elements_opt)
+
+    chamadafuncao       go to state 92
+    lista_argumentos    go to state 120
+    expressao           go to state 121
+    explogica           go to state 94
+    exp_and             go to state 95
+    exp_not             go to state 96
+    exprelacional       go to state 97
+    exparitimetica      go to state 98
+    termo               go to state 99
+    unario              go to state 100
+    potencia            go to state 101
+    l_value             go to state 102
+    fator               go to state 103
+    arrayLiteral        go to state 104
+    array_elements_opt  go to state 122
+
+
+State 83
+
+  106 fator: TRUE •
+
+    $default  reduce using rule 106 (fator)
+
+
+State 84
+
+  107 fator: FALSE •
+
+    $default  reduce using rule 107 (fator)
+
+
+State 85
+
+  108 fator: NULL_VAL •
+
+    $default  reduce using rule 108 (fator)
+
+
+State 86
+
+   77 exp_not: NOT • exp_not
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    exp_not         go to state 123
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 87
+
+   94 unario: PLUS • unario
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao  go to state 92
+    unario         go to state 124
+    potencia       go to state 101
+    l_value        go to state 102
+    fator          go to state 103
+    arrayLiteral   go to state 104
+
+
+State 88
+
+   93 unario: MINUS • unario
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao  go to state 92
+    unario         go to state 125
+    potencia       go to state 101
+    l_value        go to state 102
+    fator          go to state 103
+    arrayLiteral   go to state 104
+
+
+State 89
+
+  103 fator: INT_NUM •
+
+    $default  reduce using rule 103 (fator)
+
+
+State 90
+
+  104 fator: REAL_NUM •
+
+    $default  reduce using rule 104 (fator)
+
+
+State 91
+
+  105 fator: STRING_LITERAL •
+
+    $default  reduce using rule 105 (fator)
+
+
+State 92
+
+  101 fator: chamadafuncao •
+
+    $default  reduce using rule 101 (fator)
+
+
+State 93
+
+   57 retorno: RETURN expressao •
+
+    $default  reduce using rule 57 (retorno)
+
+
+State 94
+
+   72 expressao: explogica •
+   73 explogica: explogica • OR exp_and
+
+    OR  shift, and go to state 126
+
+    $default  reduce using rule 72 (expressao)
+
+
+State 95
+
+   74 explogica: exp_and •
+   75 exp_and: exp_and • AND exp_not
+
+    AND  shift, and go to state 127
+
+    $default  reduce using rule 74 (explogica)
+
+
+State 96
+
+   76 exp_and: exp_not •
+
+    $default  reduce using rule 76 (exp_and)
+
+
+State 97
+
+   78 exp_not: exprelacional •
+
+    $default  reduce using rule 78 (exp_not)
+
+
+State 98
+
+   79 exprelacional: exparitimetica • op_relacional exparitimetica
+   80              | exparitimetica •
+   87 exparitimetica: exparitimetica • PLUS termo
+   88               | exparitimetica • MINUS termo
+
+    LT     shift, and go to state 128
+    LEQ    shift, and go to state 129
+    GT     shift, and go to state 130
+    GEQ    shift, and go to state 131
+    EQ     shift, and go to state 132
+    NEQ    shift, and go to state 133
+    PLUS   shift, and go to state 134
+    MINUS  shift, and go to state 135
+
+    $default  reduce using rule 80 (exprelacional)
+
+    op_relacional  go to state 136
+
+
+State 99
+
+   89 exparitimetica: termo •
+   90 termo: termo • MUL unario
+   91      | termo • DIV unario
+
+    MUL  shift, and go to state 137
+    DIV  shift, and go to state 138
+
+    $default  reduce using rule 89 (exparitimetica)
+
+
+State 100
+
+   92 termo: unario •
+
+    $default  reduce using rule 92 (termo)
+
+
+State 101
+
+   95 unario: potencia •
+
+    $default  reduce using rule 95 (unario)
+
+
+State 102
+
+   99 l_value: l_value • LBRACKET expressao RBRACKET
+  100        | l_value • DOT ID
+  102 fator: l_value •
+
+    LBRACKET  shift, and go to state 113
+    DOT       shift, and go to state 114
+
+    $default  reduce using rule 102 (fator)
+
+
+State 103
+
+   96 potencia: fator • POW unario
+   97         | fator •
+
+    POW  shift, and go to state 139
+
+    $default  reduce using rule 97 (potencia)
+
+
+State 104
+
+  109 fator: arrayLiteral •
+
+    $default  reduce using rule 109 (fator)
+
+
+State 105
+
+   52 comandoif: IF LPAREN • expressao RPAREN $@5 NEWLINE corpo_bloco cauda_if
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    expressao       go to state 140
+    explogica       go to state 94
+    exp_and         go to state 95
+    exp_not         go to state 96
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 106
+
+   50 comandowhile: WHILE LPAREN • expressao RPAREN $@4 NEWLINE corpo_bloco ENDWHILE
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    expressao       go to state 141
+    explogica       go to state 94
+    exp_and         go to state 95
+    exp_not         go to state 96
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 107
+
+   39 comandoprint: PRINT LPAREN • argumentos_opt RPAREN
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    REF             shift, and go to state 119
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    $default  reduce using rule 61 (argumentos_opt)
+
+    chamadafuncao     go to state 92
+    argumentos_opt    go to state 142
+    lista_argumentos  go to state 143
+    expressao         go to state 121
+    explogica         go to state 94
+    exp_and           go to state 95
+    exp_not           go to state 96
+    exprelacional     go to state 97
+    exparitimetica    go to state 98
+    termo             go to state 99
+    unario            go to state 100
+    potencia          go to state 101
+    l_value           go to state 102
+    fator             go to state 103
+    arrayLiteral      go to state 104
+
+
+State 108
+
+   43 declaracaovar: REF tipo • ID ASSIGN REF l_value
+   44              | REF tipo • ID ASSIGN expressao
+   45              | REF tipo • ID
+   71 tipo: tipo • LBRACKET RBRACKET
+
+    LBRACKET  shift, and go to state 23
+    ID        shift, and go to state 144
+
+
+State 109
+
+   58 chamadafuncao: ID LPAREN • STRUCT_ID RPAREN
+   59              | ID LPAREN • argumentos_opt RPAREN
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    REF             shift, and go to state 119
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRUCT_ID       shift, and go to state 145
+    STRING_LITERAL  shift, and go to state 91
+
+    $default  reduce using rule 61 (argumentos_opt)
+
+    chamadafuncao     go to state 92
+    argumentos_opt    go to state 146
+    lista_argumentos  go to state 143
+    expressao         go to state 121
+    explogica         go to state 94
+    exp_and           go to state 95
+    exp_not           go to state 96
+    exprelacional     go to state 97
+    exparitimetica    go to state 98
+    termo             go to state 99
+    unario            go to state 100
+    potencia          go to state 101
+    l_value           go to state 102
+    fator             go to state 103
+    arrayLiteral      go to state 104
+
+
+State 110
+
+   27 comandos: comandos comando NEWLINE •
+
+    $default  reduce using rule 27 (comandos)
+
+
+State 111
+
+   40 declaracaovar: tipo ID • ASSIGN READ LPAREN RPAREN
+   41              | tipo ID • ASSIGN expressao
+   42              | tipo ID •
+
+    ASSIGN  shift, and go to state 147
+
+    $default  reduce using rule 42 (declaracaovar)
+
+
+State 112
+
+   46 atribuicao: l_value ASSIGN • READ LPAREN RPAREN
+   47           | l_value ASSIGN • REF l_value
+   48           | l_value ASSIGN • expressao
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    READ            shift, and go to state 148
+    REF             shift, and go to state 149
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    expressao       go to state 150
+    explogica       go to state 94
+    exp_and         go to state 95
+    exp_not         go to state 96
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 113
+
+   99 l_value: l_value LBRACKET • expressao RBRACKET
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    expressao       go to state 151
+    explogica       go to state 94
+    exp_and         go to state 95
+    exp_not         go to state 96
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 114
+
+  100 l_value: l_value DOT • ID
+
+    ID  shift, and go to state 152
+
+
+State 115
+
+   18 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco • ENDSUB NEWLINE
+
+    ENDSUB  shift, and go to state 153
+
+
+State 116
+
+   23 lista_parametros: lista_parametros COMMA REF tipo ID •
+
+    $default  reduce using rule 23 (lista_parametros)
+
+
+State 117
+
+   13 campo: REF tipo ID •
+
+    $default  reduce using rule 13 (campo)
+
+
+State 118
+
+  110 fator: LPAREN expressao • RPAREN
+
+    RPAREN  shift, and go to state 154
+
+
+State 119
+
+   63 lista_argumentos: REF • l_value
+
+    ID  shift, and go to state 155
+
+    l_value  go to state 156
+
+
+State 120
+
+   62 lista_argumentos: lista_argumentos • COMMA REF l_value
+   64                 | lista_argumentos • COMMA expressao
+  112 array_elements_opt: lista_argumentos •
+
+    COMMA  shift, and go to state 157
+
+    $default  reduce using rule 112 (array_elements_opt)
+
+
+State 121
+
+   65 lista_argumentos: expressao •
+
+    $default  reduce using rule 65 (lista_argumentos)
+
+
+State 122
+
+  111 arrayLiteral: LBRACKET array_elements_opt • RBRACKET
+
+    RBRACKET  shift, and go to state 158
+
+
+State 123
+
+   77 exp_not: NOT exp_not •
+
+    $default  reduce using rule 77 (exp_not)
+
+
+State 124
+
+   94 unario: PLUS unario •
+
+    $default  reduce using rule 94 (unario)
+
+
+State 125
+
+   93 unario: MINUS unario •
+
+    $default  reduce using rule 93 (unario)
+
+
+State 126
+
+   73 explogica: explogica OR • exp_and
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    exp_and         go to state 159
+    exp_not         go to state 96
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 127
+
+   75 exp_and: exp_and AND • exp_not
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    exp_not         go to state 160
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 128
+
+   81 op_relacional: LT •
+
+    $default  reduce using rule 81 (op_relacional)
+
+
+State 129
+
+   82 op_relacional: LEQ •
+
+    $default  reduce using rule 82 (op_relacional)
+
+
+State 130
+
+   83 op_relacional: GT •
+
+    $default  reduce using rule 83 (op_relacional)
+
+
+State 131
+
+   84 op_relacional: GEQ •
+
+    $default  reduce using rule 84 (op_relacional)
+
+
+State 132
+
+   85 op_relacional: EQ •
+
+    $default  reduce using rule 85 (op_relacional)
+
+
+State 133
+
+   86 op_relacional: NEQ •
+
+    $default  reduce using rule 86 (op_relacional)
+
+
+State 134
+
+   87 exparitimetica: exparitimetica PLUS • termo
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao  go to state 92
+    termo          go to state 161
+    unario         go to state 100
+    potencia       go to state 101
+    l_value        go to state 102
+    fator          go to state 103
+    arrayLiteral   go to state 104
+
+
+State 135
+
+   88 exparitimetica: exparitimetica MINUS • termo
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao  go to state 92
+    termo          go to state 162
+    unario         go to state 100
+    potencia       go to state 101
+    l_value        go to state 102
+    fator          go to state 103
+    arrayLiteral   go to state 104
+
+
+State 136
+
+   79 exprelacional: exparitimetica op_relacional • exparitimetica
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    exparitimetica  go to state 163
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 137
+
+   90 termo: termo MUL • unario
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao  go to state 92
+    unario         go to state 164
+    potencia       go to state 101
+    l_value        go to state 102
+    fator          go to state 103
+    arrayLiteral   go to state 104
+
+
+State 138
+
+   91 termo: termo DIV • unario
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao  go to state 92
+    unario         go to state 165
+    potencia       go to state 101
+    l_value        go to state 102
+    fator          go to state 103
+    arrayLiteral   go to state 104
+
+
+State 139
+
+   96 potencia: fator POW • unario
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao  go to state 92
+    unario         go to state 166
+    potencia       go to state 101
+    l_value        go to state 102
+    fator          go to state 103
+    arrayLiteral   go to state 104
+
+
+State 140
+
+   52 comandoif: IF LPAREN expressao • RPAREN $@5 NEWLINE corpo_bloco cauda_if
+
+    RPAREN  shift, and go to state 167
+
+
+State 141
+
+   50 comandowhile: WHILE LPAREN expressao • RPAREN $@4 NEWLINE corpo_bloco ENDWHILE
+
+    RPAREN  shift, and go to state 168
+
+
+State 142
+
+   39 comandoprint: PRINT LPAREN argumentos_opt • RPAREN
+
+    RPAREN  shift, and go to state 169
+
+
+State 143
+
+   60 argumentos_opt: lista_argumentos •
+   62 lista_argumentos: lista_argumentos • COMMA REF l_value
+   64                 | lista_argumentos • COMMA expressao
+
+    COMMA  shift, and go to state 157
+
+    $default  reduce using rule 60 (argumentos_opt)
+
+
+State 144
+
+   43 declaracaovar: REF tipo ID • ASSIGN REF l_value
+   44              | REF tipo ID • ASSIGN expressao
+   45              | REF tipo ID •
+
+    ASSIGN  shift, and go to state 170
+
+    $default  reduce using rule 45 (declaracaovar)
+
+
+State 145
+
+   58 chamadafuncao: ID LPAREN STRUCT_ID • RPAREN
+
+    RPAREN  shift, and go to state 171
+
+
+State 146
+
+   59 chamadafuncao: ID LPAREN argumentos_opt • RPAREN
+
+    RPAREN  shift, and go to state 172
+
+
+State 147
+
+   40 declaracaovar: tipo ID ASSIGN • READ LPAREN RPAREN
+   41              | tipo ID ASSIGN • expressao
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    READ            shift, and go to state 173
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    expressao       go to state 174
+    explogica       go to state 94
+    exp_and         go to state 95
+    exp_not         go to state 96
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 148
+
+   46 atribuicao: l_value ASSIGN READ • LPAREN RPAREN
+
+    LPAREN  shift, and go to state 175
+
+
+State 149
+
+   47 atribuicao: l_value ASSIGN REF • l_value
+
+    ID  shift, and go to state 155
+
+    l_value  go to state 176
+
+
+State 150
+
+   48 atribuicao: l_value ASSIGN expressao •
+
+    $default  reduce using rule 48 (atribuicao)
+
+
+State 151
+
+   99 l_value: l_value LBRACKET expressao • RBRACKET
+
+    RBRACKET  shift, and go to state 177
+
+
+State 152
+
+  100 l_value: l_value DOT ID •
+
+    $default  reduce using rule 100 (l_value)
+
+
+State 153
+
+   18 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB • NEWLINE
+
+    NEWLINE  shift, and go to state 178
+
+
+State 154
+
+  110 fator: LPAREN expressao RPAREN •
+
+    $default  reduce using rule 110 (fator)
+
+
+State 155
+
+   98 l_value: ID •
+
+    $default  reduce using rule 98 (l_value)
+
+
+State 156
+
+   63 lista_argumentos: REF l_value •
+   99 l_value: l_value • LBRACKET expressao RBRACKET
+  100        | l_value • DOT ID
+
+    LBRACKET  shift, and go to state 113
+    DOT       shift, and go to state 114
+
+    $default  reduce using rule 63 (lista_argumentos)
+
+
+State 157
+
+   62 lista_argumentos: lista_argumentos COMMA • REF l_value
+   64                 | lista_argumentos COMMA • expressao
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    REF             shift, and go to state 179
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    expressao       go to state 180
+    explogica       go to state 94
+    exp_and         go to state 95
+    exp_not         go to state 96
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 158
+
+  111 arrayLiteral: LBRACKET array_elements_opt RBRACKET •
+
+    $default  reduce using rule 111 (arrayLiteral)
+
+
+State 159
+
+   73 explogica: explogica OR exp_and •
+   75 exp_and: exp_and • AND exp_not
+
+    AND  shift, and go to state 127
+
+    $default  reduce using rule 73 (explogica)
+
+
+State 160
+
+   75 exp_and: exp_and AND exp_not •
+
+    $default  reduce using rule 75 (exp_and)
+
+
+State 161
+
+   87 exparitimetica: exparitimetica PLUS termo •
+   90 termo: termo • MUL unario
+   91      | termo • DIV unario
+
+    MUL  shift, and go to state 137
+    DIV  shift, and go to state 138
+
+    $default  reduce using rule 87 (exparitimetica)
+
+
+State 162
+
+   88 exparitimetica: exparitimetica MINUS termo •
+   90 termo: termo • MUL unario
+   91      | termo • DIV unario
+
+    MUL  shift, and go to state 137
+    DIV  shift, and go to state 138
+
+    $default  reduce using rule 88 (exparitimetica)
+
+
+State 163
+
+   79 exprelacional: exparitimetica op_relacional exparitimetica •
+   87 exparitimetica: exparitimetica • PLUS termo
+   88               | exparitimetica • MINUS termo
+
+    PLUS   shift, and go to state 134
+    MINUS  shift, and go to state 135
+
+    $default  reduce using rule 79 (exprelacional)
+
+
+State 164
+
+   90 termo: termo MUL unario •
+
+    $default  reduce using rule 90 (termo)
+
+
+State 165
+
+   91 termo: termo DIV unario •
+
+    $default  reduce using rule 91 (termo)
+
+
+State 166
+
+   96 potencia: fator POW unario •
+
+    $default  reduce using rule 96 (potencia)
+
+
+State 167
+
+   52 comandoif: IF LPAREN expressao RPAREN • $@5 NEWLINE corpo_bloco cauda_if
+
+    $default  reduce using rule 51 ($@5)
+
+    $@5  go to state 181
+
+
+State 168
+
+   50 comandowhile: WHILE LPAREN expressao RPAREN • $@4 NEWLINE corpo_bloco ENDWHILE
+
+    $default  reduce using rule 49 ($@4)
+
+    $@4  go to state 182
+
+
+State 169
+
+   39 comandoprint: PRINT LPAREN argumentos_opt RPAREN •
+
+    $default  reduce using rule 39 (comandoprint)
+
+
+State 170
+
+   43 declaracaovar: REF tipo ID ASSIGN • REF l_value
+   44              | REF tipo ID ASSIGN • expressao
+
+    LPAREN          shift, and go to state 81
+    LBRACKET        shift, and go to state 82
+    TRUE            shift, and go to state 83
+    FALSE           shift, and go to state 84
+    NULL_VAL        shift, and go to state 85
+    NOT             shift, and go to state 86
+    PLUS            shift, and go to state 87
+    MINUS           shift, and go to state 88
+    REF             shift, and go to state 183
+    INT_NUM         shift, and go to state 89
+    REAL_NUM        shift, and go to state 90
+    ID              shift, and go to state 62
+    STRING_LITERAL  shift, and go to state 91
+
+    chamadafuncao   go to state 92
+    expressao       go to state 184
+    explogica       go to state 94
+    exp_and         go to state 95
+    exp_not         go to state 96
+    exprelacional   go to state 97
+    exparitimetica  go to state 98
+    termo           go to state 99
+    unario          go to state 100
+    potencia        go to state 101
+    l_value         go to state 102
+    fator           go to state 103
+    arrayLiteral    go to state 104
+
+
+State 171
+
+   58 chamadafuncao: ID LPAREN STRUCT_ID RPAREN •
+
+    $default  reduce using rule 58 (chamadafuncao)
+
+
+State 172
+
+   59 chamadafuncao: ID LPAREN argumentos_opt RPAREN •
+
+    $default  reduce using rule 59 (chamadafuncao)
+
+
+State 173
+
+   40 declaracaovar: tipo ID ASSIGN READ • LPAREN RPAREN
+
+    LPAREN  shift, and go to state 185
+
+
+State 174
+
+   41 declaracaovar: tipo ID ASSIGN expressao •
+
+    $default  reduce using rule 41 (declaracaovar)
+
+
+State 175
+
+   46 atribuicao: l_value ASSIGN READ LPAREN • RPAREN
+
+    RPAREN  shift, and go to state 186
+
+
+State 176
+
+   47 atribuicao: l_value ASSIGN REF l_value •
+   99 l_value: l_value • LBRACKET expressao RBRACKET
+  100        | l_value • DOT ID
+
+    LBRACKET  shift, and go to state 113
+    DOT       shift, and go to state 114
+
+    $default  reduce using rule 47 (atribuicao)
+
+
+State 177
+
+   99 l_value: l_value LBRACKET expressao RBRACKET •
+
+    $default  reduce using rule 99 (l_value)
+
+
+State 178
+
+   18 subrotina: SUB tipo_opt ID LPAREN parametros_opt RPAREN $@3 NEWLINE corpo_bloco ENDSUB NEWLINE •
+
+    $default  reduce using rule 18 (subrotina)
+
+
+State 179
+
+   62 lista_argumentos: lista_argumentos COMMA REF • l_value
+
+    ID  shift, and go to state 155
+
+    l_value  go to state 187
+
+
+State 180
+
+   64 lista_argumentos: lista_argumentos COMMA expressao •
+
+    $default  reduce using rule 64 (lista_argumentos)
+
+
+State 181
+
+   52 comandoif: IF LPAREN expressao RPAREN $@5 • NEWLINE corpo_bloco cauda_if
+
+    NEWLINE  shift, and go to state 188
+
+
+State 182
+
+   50 comandowhile: WHILE LPAREN expressao RPAREN $@4 • NEWLINE corpo_bloco ENDWHILE
+
+    NEWLINE  shift, and go to state 189
+
+
+State 183
+
+   43 declaracaovar: REF tipo ID ASSIGN REF • l_value
+
+    ID  shift, and go to state 155
+
+    l_value  go to state 190
+
+
+State 184
+
+   44 declaracaovar: REF tipo ID ASSIGN expressao •
+
+    $default  reduce using rule 44 (declaracaovar)
+
+
+State 185
+
+   40 declaracaovar: tipo ID ASSIGN READ LPAREN • RPAREN
+
+    RPAREN  shift, and go to state 191
+
+
+State 186
+
+   46 atribuicao: l_value ASSIGN READ LPAREN RPAREN •
+
+    $default  reduce using rule 46 (atribuicao)
+
+
+State 187
+
+   62 lista_argumentos: lista_argumentos COMMA REF l_value •
+   99 l_value: l_value • LBRACKET expressao RBRACKET
+  100        | l_value • DOT ID
+
+    LBRACKET  shift, and go to state 113
+    DOT       shift, and go to state 114
+
+    $default  reduce using rule 62 (lista_argumentos)
+
+
+State 188
+
+   52 comandoif: IF LPAREN expressao RPAREN $@5 NEWLINE • corpo_bloco cauda_if
+
+    INDENT  shift, and go to state 36
+
+    $default  reduce using rule 30 (corpo_bloco)
+
+    corpo_bloco  go to state 192
+
+
+State 189
+
+   50 comandowhile: WHILE LPAREN expressao RPAREN $@4 NEWLINE • corpo_bloco ENDWHILE
+
+    INDENT  shift, and go to state 36
+
+    $default  reduce using rule 30 (corpo_bloco)
+
+    corpo_bloco  go to state 193
+
+
+State 190
+
+   43 declaracaovar: REF tipo ID ASSIGN REF l_value •
+   99 l_value: l_value • LBRACKET expressao RBRACKET
+  100        | l_value • DOT ID
+
+    LBRACKET  shift, and go to state 113
+    DOT       shift, and go to state 114
+
+    $default  reduce using rule 43 (declaracaovar)
+
+
+State 191
+
+   40 declaracaovar: tipo ID ASSIGN READ LPAREN RPAREN •
+
+    $default  reduce using rule 40 (declaracaovar)
+
+
+State 192
+
+   52 comandoif: IF LPAREN expressao RPAREN $@5 NEWLINE corpo_bloco • cauda_if
+
+    ELSE   shift, and go to state 194
+    ENDIF  shift, and go to state 195
+
+    cauda_if  go to state 196
+
+
+State 193
+
+   50 comandowhile: WHILE LPAREN expressao RPAREN $@4 NEWLINE corpo_bloco • ENDWHILE
+
+    ENDWHILE  shift, and go to state 197
+
+
+State 194
+
+   55 cauda_if: ELSE • $@6 NEWLINE corpo_bloco ENDIF
+
+    $default  reduce using rule 54 ($@6)
+
+    $@6  go to state 198
+
+
+State 195
+
+   53 cauda_if: ENDIF •
+
+    $default  reduce using rule 53 (cauda_if)
+
+
+State 196
+
+   52 comandoif: IF LPAREN expressao RPAREN $@5 NEWLINE corpo_bloco cauda_if •
+
+    $default  reduce using rule 52 (comandoif)
+
+
+State 197
+
+   50 comandowhile: WHILE LPAREN expressao RPAREN $@4 NEWLINE corpo_bloco ENDWHILE •
+
+    $default  reduce using rule 50 (comandowhile)
+
+
+State 198
+
+   55 cauda_if: ELSE $@6 • NEWLINE corpo_bloco ENDIF
+
+    NEWLINE  shift, and go to state 199
+
+
+State 199
+
+   55 cauda_if: ELSE $@6 NEWLINE • corpo_bloco ENDIF
+
+    INDENT  shift, and go to state 36
+
+    $default  reduce using rule 30 (corpo_bloco)
+
+    corpo_bloco  go to state 200
+
+
+State 200
+
+   55 cauda_if: ELSE $@6 NEWLINE corpo_bloco • ENDIF
+
+    ENDIF  shift, and go to state 201
+
+
+State 201
+
+   55 cauda_if: ELSE $@6 NEWLINE corpo_bloco ENDIF •
+
+    $default  reduce using rule 55 (cauda_if)

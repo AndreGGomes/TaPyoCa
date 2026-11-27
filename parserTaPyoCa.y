@@ -24,6 +24,7 @@
         char *c_texto;
     } ListaArgs;
 }
+
 %{
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,7 +46,7 @@ typedef struct {
 } LoopLabels;
 
 int yylex(void);
-int yyerror(char *s);
+void yyerror(const char *msg);
 extern int yylineno;
 extern char *yytext;
 
@@ -170,18 +171,18 @@ static StructDef *struct_atual = NULL;   /* struct sendo declarada no momento */
 %}
 
 %code {
-static void free_lista_args(ListaArgs *la) {
-    if (!la) return;
-    for (int i = 0; i < la->count; i++) {
-        free(la->nomes[i]);
-        free(la->c_itens[i]);
+    static void free_lista_args(ListaArgs *la) {
+        if (!la) return;
+        for (int i = 0; i < la->count; i++) {
+            free(la->nomes[i]);
+            free(la->c_itens[i]);
+        }
+        free(la->texto);
+        free(la->c_texto);
+        free(la);
     }
-    free(la->texto);
-    free(la->c_texto);
-    free(la);
 }
-}
-
+%define parse.error verbose
 %union {
     int ival;
     double fval;
@@ -210,6 +211,7 @@ static void free_lista_args(ListaArgs *la) {
 %type <alist> argumentos_opt lista_argumentos array_elements_opt
 %type <expr> expressao explogica exp_and exp_not exprelacional exparitimetica termo unario
 %type <expr> l_value fator potencia arrayLiteral chamadafuncao
+
 
 %start programa
 
@@ -1498,6 +1500,15 @@ array_elements_opt
 
 %%
 
+void yyerror(const char *msg) {
+    // Se o erro ocorrer no fim do arquivo (EOF), yytext estará vazio
+    if (yytext[0] == '\0') {
+        fprintf(stderr, "Erro de sintaxe na linha %d: fim de arquivo inesperado.\n", yylineno);
+    } else {
+        fprintf(stderr, "Erro de sintaxe na linha %d próximo a '%s'.\n", yylineno, yytext);
+    }
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Uso: %s <arquivo.tpyc>\n", argv[0]);
@@ -1554,10 +1565,5 @@ int main(int argc, char **argv) {
     }
 
     printf("Executavel './%s' gerado com sucesso.\n", nome_base);
-    return 0;
-}
-
-int yyerror(char *msg) {
-    fprintf(stderr, "Linha %d: %s at '%s'\n", yylineno, msg, yytext);
     return 0;
 }
